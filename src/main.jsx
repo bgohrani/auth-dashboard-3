@@ -29,19 +29,17 @@ const SECTIONS = [
   ["risk", "Fraud & Chargebacks"],
 ];
 
-const FILTER_FIELDS = [
-  ["year_month", "Month"],
-  ["issuer_name", "Issuer"],
-  ["acquirer_name", "Acquirer"],
-  ["issuer_country", "Issuer Country"],
-  ["channel", "Channel"],
-  ["3DS", "3DS"],
-  ["tokenization", "Tokenization"],
-  ["entry mode code", "Entry Mode"],
-  ["prod type", "Product"],
-  ["wallet", "Wallet"],
-  ["ticket size bands", "Ticket Band"],
+const FILTER_GROUPS = [
+  { key: "time", label: "Time", icon: "◷", fields: [["year_month", "Year / Month"]] },
+  { key: "issuer", label: "Issuer", icon: "🏦", fields: [["issuer_name", "Issuer Name"], ["issuer_country", "Issuer Country"]] },
+  { key: "merchant", label: "Merchant", icon: "🏪", fields: [["merchant_name", "Merchant Name"], ["mcc", "MCC"]] },
+  { key: "product", label: "Product", icon: "▣", fields: [["prod type", "Product"]] },
+  { key: "payment", label: "Payment", icon: "↔", fields: [["acquirer_name", "Acquirer"], ["channel", "Channel"], ["wallet", "Wallet"]] },
+  { key: "authentication", label: "Authentication", icon: "◇", fields: [["3DS", "3DS"], ["tokenization", "Tokenization"], ["entry mode code", "Entry Mode"]] },
+  { key: "ticket", label: "Transaction", icon: "▤", fields: [["ticket size bands", "Ticket Band"]] },
 ];
+
+const FILTER_FIELDS = FILTER_GROUPS.flatMap((group) => group.fields);
 
 const MODEL_OPTIONS = [
   { provider: "gemini", model: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite" },
@@ -49,7 +47,7 @@ const MODEL_OPTIONS = [
   { provider: "openrouter", model: "openrouter/free", label: "OpenRouter Free" },
 ];
 
-const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, "All"]));
+const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, []]));
 
 const n = (v) => {
   const x = Number(String(v ?? "").replace(/,/g, ""));
@@ -210,7 +208,10 @@ function App() {
   const filteredRows = useMemo(
     () =>
       rows.filter((r) =>
-        FILTER_FIELDS.every(([key]) => filters[key] === "All" || String(r[key]) === filters[key])
+        FILTER_FIELDS.every(([key]) => {
+          const selected = filters[key] || [];
+          return selected.length === 0 || selected.includes(String(r[key]));
+        })
       ),
     [rows, filters]
   );
@@ -253,7 +254,7 @@ function App() {
   const aiContext = useMemo(() => ({
     view: SECTIONS.find(([id]) => id === section)?.[1] || section,
     filters: Object.fromEntries(
-      Object.entries(filters).filter(([, value]) => value !== "All")
+      Object.entries(filters).filter(([, value]) => Array.isArray(value) && value.length > 0)
     ),
     rowsInScope: filteredRows.length,
     kpis: {
@@ -324,7 +325,7 @@ function App() {
         <div>
           <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
           <h1>Loading authorization data</h1>
-          <p>Connecting to the data source…</p>
+          <p>Connecting to the live Google Sheets data source…</p>
         </div>
       </div>
     );
@@ -355,20 +356,15 @@ function App() {
         </div>
 
         <div className="side-label">GLOBAL FILTERS</div>
-        <div className="filters">
-          {FILTER_FIELDS.map(([key, label]) => (
-            <label key={key} className="filter">
-              <span>{label}</span>
-              <select
-                value={filters[key]}
-                onChange={(e) => setFilters((f) => ({ ...f, [key]: e.target.value }))}
-              >
-                <option>All</option>
-                {(options[key] || []).map((value) => (
-                  <option key={value} value={value}>{value}</option>
-                ))}
-              </select>
-            </label>
+        <div className="filter-groups">
+          {FILTER_GROUPS.map((group) => (
+            <FilterGroup
+              key={group.key}
+              group={group}
+              filters={filters}
+              options={options}
+              setFilters={setFilters}
+            />
           ))}
         </div>
         <button className="reset-btn" onClick={resetFilters}>Reset all filters</button>
@@ -434,8 +430,8 @@ function App() {
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
                         <Tooltip formatter={(v) => number(v)} />
                         <Legend />
-                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(22,119,210,.14)" stroke="#1677d2" strokeWidth={2} />
-                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(220,82,105,.10)" stroke="#dc5269" strokeWidth={2} />
+                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(64,180,255,.18)" stroke="#46b5ff" strokeWidth={2} />
+                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(255,100,130,.10)" stroke="#ff6b87" strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -446,7 +442,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
                         <Tooltip formatter={(v) => number(v)} />
-                        <Bar dataKey="approved" name="Approved" fill="#1677d2" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="approved" name="Approved" fill="#46b5ff" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -475,7 +471,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="approval" name="Approval Rate" fill="#159a68" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="approval" name="Approval Rate" fill="#66d4a6" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -486,7 +482,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={money} />
                         <Tooltip formatter={(v) => money(v)} />
-                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#1677d2" strokeWidth={3} dot={false} />
+                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#46b5ff" strokeWidth={3} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -522,7 +518,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="decline" name="Decline Rate" fill="#dc5269" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -553,7 +549,7 @@ function App() {
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                       <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
-                      <Bar dataKey="fraud" name="Fraud Rate" fill="#d88928" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="fraud" name="Fraud Rate" fill="#ffb86b" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartCard>
@@ -628,6 +624,72 @@ function App() {
           </>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function FilterGroup({ group, filters, options, setFilters }) {
+  const [open, setOpen] = useState(null);
+
+  function toggleValue(key, value) {
+    setFilters((current) => {
+      const selected = current[key] || [];
+      const next = selected.includes(value)
+        ? selected.filter((x) => x !== value)
+        : [...selected, value];
+      return { ...current, [key]: next };
+    });
+  }
+
+  function clearField(key) {
+    setFilters((current) => ({ ...current, [key]: [] }));
+  }
+
+  return (
+    <div className="filter-group">
+      <div className="filter-group-title">
+        <span className="filter-group-icon">{group.icon}</span>
+        <span>{group.label}</span>
+      </div>
+      <div className="filter-group-fields">
+        {group.fields.map(([key, label]) => {
+          const selected = filters[key] || [];
+          const values = options[key] || [];
+          const isOpen = open === key;
+          const summary = selected.length === 0 ? "All" : selected.length === 1 ? selected[0] : `${selected.length} selected`;
+
+          return (
+            <div className="multi-filter" key={key}>
+              <button type="button" className={`multi-filter-trigger ${selected.length ? "has-selection" : ""}`} onClick={() => setOpen(isOpen ? null : key)} aria-expanded={isOpen}>
+                <span className="multi-filter-label">{label}</span>
+                <span className="multi-filter-summary">{summary}</span>
+                <span className="multi-filter-chevron">⌄</span>
+              </button>
+              {isOpen && (
+                <>
+                  <button type="button" className="filter-popover-backdrop" aria-label="Close filter" onClick={() => setOpen(null)} />
+                  <div className="filter-popover">
+                    <div className="filter-popover-head">
+                      <span>{label}</span>
+                      {selected.length > 0 && <button type="button" onClick={() => clearField(key)}>Clear</button>}
+                    </div>
+                    <div className="filter-options">
+                      {values.map((value) => (
+                        <label className="filter-option" key={value}>
+                          <input type="checkbox" checked={selected.includes(String(value))} onChange={() => toggleValue(key, String(value))} />
+                          <span>{value}</span>
+                        </label>
+                      ))}
+                      {!values.length && <div className="filter-empty">No values available</div>}
+                    </div>
+                    <button type="button" className="filter-done" onClick={() => setOpen(null)}>Done</button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

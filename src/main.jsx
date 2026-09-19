@@ -8,6 +8,7 @@ import {
   Area,
   BarChart,
   Bar,
+  ComposedChart,
   LineChart,
   Line,
   PieChart,
@@ -143,6 +144,42 @@ function groupRates(rows, key) {
       fraud: pct(x.fraud, x.approved),
     }))
     .sort((a, b) => b.approval - a.approval);
+}
+
+function topAmountApproval(rows, key) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const name = String(r[key] ?? "").trim();
+
+    if (!name) return;
+
+    const approved = n(r["approved count"]);
+    const declined = n(r["decline count"]);
+    const approvedAmt = n(r["approved amt"]);
+    const declineAmt = n(r["decline amount"]);
+
+    const current = map.get(name) || {
+      name,
+      totalAmount: 0,
+      approved: 0,
+      declined: 0,
+    };
+
+    current.totalAmount += approvedAmt + declineAmt;
+    current.approved += approved;
+    current.declined += declined;
+
+    map.set(name, current);
+  });
+
+  return [...map.values()]
+    .map((x) => ({
+      ...x,
+      approvalRate: pct(x.approved, x.approved + x.declined),
+    }))
+    .sort((a, b) => b.totalAmount - a.totalAmount)
+    .slice(0, 10);
 }
 
 function monthly(rows) {
@@ -430,6 +467,16 @@ const performanceWallet = useMemo(
   [filteredRows]
 );
 
+const topMerchants = useMemo(
+  () => topAmountApproval(filteredRows, "merchant_name"),
+  [filteredRows]
+);
+
+const topMCCs = useMemo(
+  () => topAmountApproval(filteredRows, "mcc"),
+  [filteredRows]
+);  
+  
 const ticketDeclineData = useMemo(
   () => ticketDeclineMix(filteredRows),
   [filteredRows]
@@ -946,7 +993,163 @@ const ticketDeclineData = useMemo(
             
             
                 {/* ROW 3 — TICKET SIZE × DECLINE REASON */}
+                <div style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Top 10 Merchants by Transaction Amount"
+                    subtitle="Total transaction amount with approval rate by count"
+                  >
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart
+                        data={topMerchants}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
                 
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 10 }}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+                
+                        <YAxis
+                          yAxisId="amount"
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={money}
+                        />
+                
+                        <YAxis
+                          yAxisId="approval"
+                          orientation="right"
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+                
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (name === "Approval Rate") {
+                              return [
+                                `${Number(value).toFixed(2)}%`,
+                                name,
+                              ];
+                            }
+                
+                            return [
+                              money(value),
+                              "Total Amount",
+                            ];
+                          }}
+                        />
+                
+                        <Legend />
+                
+                        <Bar
+                          yAxisId="amount"
+                          dataKey="totalAmount"
+                          name="Total Amount"
+                          fill="#46b5ff"
+                          radius={[6, 6, 0, 0]}
+                        />
+                
+                        <Line
+                          yAxisId="approval"
+                          type="monotone"
+                          dataKey="approvalRate"
+                          name="Approval Rate"
+                          stroke="#ff6b87"
+                          strokeWidth={3}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+
+
+
+                <div style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Top 10 MCCs by Transaction Amount"
+                    subtitle="Total transaction amount with approval rate by count"
+                  >
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart
+                        data={topMCCs}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+                
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 10 }}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+                
+                        <YAxis
+                          yAxisId="amount"
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={money}
+                        />
+                
+                        <YAxis
+                          yAxisId="approval"
+                          orientation="right"
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+                
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (name === "Approval Rate") {
+                              return [
+                                `${Number(value).toFixed(2)}%`,
+                                name,
+                              ];
+                            }
+                
+                            return [
+                              money(value),
+                              "Total Amount",
+                            ];
+                          }}
+                        />
+                
+                        <Legend />
+                
+                        <Bar
+                          yAxisId="amount"
+                          dataKey="totalAmount"
+                          name="Total Amount"
+                          fill="#46b5ff"
+                          radius={[6, 6, 0, 0]}
+                        />
+                
+                        <Line
+                          yAxisId="approval"
+                          type="monotone"
+                          dataKey="approvalRate"
+                          name="Approval Rate"
+                          stroke="#ff6b87"
+                          strokeWidth={3}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
             
               </motion.div>
             )}

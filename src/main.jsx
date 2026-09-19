@@ -345,6 +345,71 @@ function ticketDeclineMix(rows) {
   });
 }
 
+function renderAIResult(text) {
+  if (!text) return null;
+
+  const sections = text
+    .split(/\n(?=[A-Z][A-Z &'-]{4,}\n)/)
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="ai-result-sections">
+      {sections.map((block, index) => {
+        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
+        const title = lines[0];
+        const content = lines.slice(1);
+
+        const isStoryline =
+          title === "EXECUTIVE STORYLINE" || title === "STORYLINE";
+
+        return (
+          <div
+            key={`${title}-${index}`}
+            className={`ai-result-card ${isStoryline ? "storyline-card" : ""}`}
+          >
+            <div className="ai-result-title">{title}</div>
+
+            <div className="ai-result-content">
+              {content.map((line, i) => {
+                const bullet = line.match(/^[-•]\s*(.*)/);
+
+                if (bullet) {
+                  const value = bullet[1];
+
+                  const boldMatch = value.match(/^\*\*(.*?)\*\*\s*(.*)$/);
+
+                  return (
+                    <div className="ai-result-bullet" key={i}>
+                      <span className="ai-bullet-dot">•</span>
+                      <div>
+                        {boldMatch ? (
+                          <>
+                            <strong>{boldMatch[1]}</strong>{" "}
+                            {boldMatch[2]}
+                          </>
+                        ) : (
+                          value.replace(/\*\*/g, "")
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <p key={i}>
+                    {line.replace(/\*\*/g, "")}
+                  </p>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1405,7 +1470,7 @@ analysisMode: mode,
 
               <div className="ai-result">
                 {aiResult ? (
-                  <div className="insight-text">{aiResult}</div>
+                  {renderAIResult(aiResult)}
                 ) : (
                   <div className="empty-ai">
                     <div className="empty-spark">✦</div>

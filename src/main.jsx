@@ -353,6 +353,7 @@ function App() {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [aiOpen, setAiOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODEL_OPTIONS[0]);
+  const [aiMode, setAiMode] = useState("current_section");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
   const [aiResult, setAiResult] = useState("");
@@ -483,36 +484,81 @@ const ticketDeclineData = useMemo(
 );
 
   const aiContext = useMemo(() => ({
-    view: SECTIONS.find(([id]) => id === section)?.[1] || section,
-    filters: Object.fromEntries(
-      Object.entries(filters).filter(([, value]) => Array.isArray(value) && value.length > 0)
-    ),
-    rowsInScope: filteredRows.length,
-    kpis: {
-      authorizationTransactions: kpi.total,
-      approvedTransactions: kpi.approved,
-      declinedTransactions: kpi.declined,
-      approvalRate: kpi.approvalRate,
-      declineRate: kpi.declineRate,
-      approvedAmount: kpi.approvedAmt,
-      declinedAmount: kpi.declinedAmt,
-      fraudTransactions: kpi.fraud,
-      fraudRate: kpi.fraudRate,
-      fraudAmount: kpi.fraudAmt,
-      chargebackTransactions: kpi.cb,
-      chargebackRate: kpi.cbRate,
-      chargebackAmount: kpi.cbAmt,
-    },
-    monthlyVolume: trend.slice(-12),
-    channelApprovalRates: channelRates,
-    declineDrivers: declineReasons,
-    fraudDrivers: fraudReasons,
-    chargebackDrivers: cbReasons,
-  }), [
-    section, filters, filteredRows.length, kpi, trend, channelRates, declineReasons, fraudReasons, cbReasons
-  ]);
+  analysisMode: aiMode,
 
-  async function generateInsights() {
+  view: SECTIONS.find(([id]) => id === section)?.[1] || section,
+
+  filters: Object.fromEntries(
+    Object.entries(filters).filter(
+      ([, value]) => Array.isArray(value) && value.length > 0
+    )
+  ),
+
+  rowsInScope: filteredRows.length,
+
+  kpis: {
+    authorizationTransactions: kpi.total,
+    approvedTransactions: kpi.approved,
+    declinedTransactions: kpi.declined,
+    approvalRate: kpi.approvalRate,
+    declineRate: kpi.declineRate,
+    approvedAmount: kpi.approvedAmt,
+    declinedAmount: kpi.declinedAmt,
+    fraudTransactions: kpi.fraud,
+    fraudRate: kpi.fraudRate,
+    fraudAmount: kpi.fraudAmt,
+    chargebackTransactions: kpi.cb,
+    chargebackRate: kpi.cbRate,
+    chargebackAmount: kpi.cbAmt,
+  },
+
+  monthlyVolume: trend.slice(-12),
+
+  channelApprovalRates: channelRates,
+
+  declineDrivers: declineReasons,
+
+  fraudDrivers: fraudReasons,
+
+  chargebackDrivers: cbReasons,
+
+  authorizationPerformance: {
+    acquirerApprovalTrend: acquirerTrend,
+    threeDS: performance3DS,
+    tokenization: performanceTokenization,
+    entryMode: performanceEntryMode,
+    wallet: performanceWallet,
+    topMerchants,
+    topMCCs,
+  },
+
+  declineAnalysis: {
+    declineReasons,
+    channelRates,
+    ticketDeclineMix: ticketDeclineData,
+  },
+}), [
+  aiMode,
+  section,
+  filters,
+  filteredRows.length,
+  kpi,
+  trend,
+  channelRates,
+  declineReasons,
+  fraudReasons,
+  cbReasons,
+  acquirerTrend,
+  performance3DS,
+  performanceTokenization,
+  performanceEntryMode,
+  performanceWallet,
+  topMerchants,
+  topMCCs,
+  ticketDeclineData,
+]);
+
+  async function generateInsights(mode = aiMode) {
     setAiLoading(true);
     setAiStatus("Generating insights…");
     setAiResult("");
@@ -524,7 +570,11 @@ const ticketDeclineData = useMemo(
         body: JSON.stringify({
           provider: selectedModel.provider,
           model: selectedModel.model,
-          dashboardData: aiContext,
+          dashboardData: {
+            ...aiContext,
+            analysisMode: mode,
+          },
+analysisMode: mode,
         }),
         signal: controller.signal,
       });
@@ -1289,16 +1339,48 @@ const ticketDeclineData = useMemo(
                     ))}
                   </select>
                 </label>
-                <button className="generate-btn" onClick={generateInsights} disabled={aiLoading}>
-                  {aiLoading ? "Generating…" : "Generate Insights"}
+               <div className="ai-analysis-buttons">
+                <button
+                  className={`generate-btn ${aiMode === "current_section" ? "active" : ""}`}
+                  onClick={() => {
+                    setAiMode("current_section");
+                    generateInsights("current_section");
+                  }}
+                  disabled={aiLoading}
+                >
+                  {aiLoading && aiMode === "current_section"
+                    ? "Analyzing…"
+                    : "Analyze Current Section"}
                 </button>
+              
+                <button
+                  className={`generate-btn ${aiMode === "whole_dashboard" ? "active" : ""}`}
+                  onClick={() => {
+                    setAiMode("whole_dashboard");
+                    generateInsights("whole_dashboard");
+                  }}
+                  disabled={aiLoading}
+                >
+                  {aiLoading && aiMode === "whole_dashboard"
+                    ? "Analyzing…"
+                    : "Analyze Whole Dashboard"}
+                </button>
+              </div>
                 <div className="ai-status">{aiStatus || "Ready"}</div>
               </div>
 
               <div className="ai-context">
                 <div className="context-title">CONTEXT</div>
                 <div className="context-grid">
-                  <span>View</span><strong>{aiContext.view}</strong>
+                  <span>Analysis</span>
+                  <strong>
+                    {aiMode === "whole_dashboard"
+                      ? "Whole Dashboard"
+                      : "Current Section"}
+                  </strong>
+                
+                  <span>View</span>
+                  <strong>{aiContext.view}</strong>
                   <span>Rows</span><strong>{number(aiContext.rowsInScope)}</strong>
                   <span>Approval</span><strong>{rate(kpi.approvalRate)}</strong>
                   <span>Decline</span><strong>{rate(kpi.declineRate)}</strong>

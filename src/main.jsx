@@ -167,6 +167,130 @@ function monthly(rows) {
       declineAmt: x.declineAmt,
     }));
 }
+function acquirerMonthly(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const month = r.year_month || "Unknown";
+    const acquirer = r.acquirer_name || "Unknown";
+    const key = `${acquirer}|||${month}`;
+
+    const x = map.get(key) || {
+      acquirer,
+      month,
+      approved: 0,
+      declined: 0,
+    };
+
+    x.approved += n(r["approved count"]);
+    x.declined += n(r["decline count"]);
+
+    map.set(key, x);
+  });
+
+  return [...map.values()]
+    .sort((a, b) => {
+      const monthSort = String(a.month).localeCompare(String(b.month));
+      return monthSort || String(a.acquirer).localeCompare(String(b.acquirer));
+    })
+    .map((x) => ({
+      ...x,
+      approvalRate: pct(x.approved, x.approved + x.declined),
+    }));
+}
+
+
+function categoryMetrics(rows, key) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const rawValue = r[key];
+    const category =
+      rawValue === null ||
+      rawValue === undefined ||
+      String(rawValue).trim() === ""
+        ? "NA"
+        : String(rawValue).trim();
+
+    const x = map.get(category) || {
+      name: category,
+      approved: 0,
+      declined: 0,
+      approvedAmt: 0,
+      declinedAmt: 0,
+    };
+
+    x.approved += n(r["approved count"]);
+    x.declined += n(r["decline count"]);
+    x.approvedAmt += n(r["approved amt"]);
+    x.declinedAmt += n(r["decline amount"]);
+
+    map.set(category, x);
+  });
+
+  const totalCount = [...map.values()].reduce(
+    (sum, x) => sum + x.approved + x.declined,
+    0
+  );
+
+  return [...map.values()].map((x) => ({
+    ...x,
+    totalCount: x.approved + x.declined,
+    share: pct(x.approved + x.declined, totalCount),
+    approvalRateByCount: pct(x.approved, x.approved + x.declined),
+    approvalRateByAmount: pct(
+      x.approvedAmt,
+      x.approvedAmt + x.declinedAmt
+    ),
+  }));
+}
+
+
+function ticketDeclineMix(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const ticket =
+      r["ticket size bands"] === null ||
+      r["ticket size bands"] === undefined ||
+      String(r["ticket size bands"]).trim() === ""
+        ? "NA"
+        : String(r["ticket size bands"]).trim();
+
+    const reason =
+      r.response_description === null ||
+      r.response_description === undefined ||
+      String(r.response_description).trim() === ""
+        ? "NA"
+        : String(r.response_description).trim();
+
+    const key = `${ticket}|||${reason}`;
+
+    const current = map.get(key) || {
+      ticket,
+      reason,
+      count: 0,
+    };
+
+    current.count += n(r["decline count"]);
+    map.set(key, current);
+  });
+
+  const ticketTotals = new Map();
+
+  [...map.values()].forEach((x) => {
+    ticketTotals.set(
+      x.ticket,
+      (ticketTotals.get(x.ticket) || 0) + x.count
+    );
+  });
+
+  return [...map.values()].map((x) => ({
+    ticket: x.ticket,
+    reason: x.reason,
+    share: pct(x.count, ticketTotals.get(x.ticket)),
+  }));
+}
 
 function App() {
   const [rows, setRows] = useState([]);
@@ -264,6 +388,36 @@ function App() {
   );
 
   const channelRates = useMemo(() => groupRates(filteredRows, "channel"), [filteredRows]);
+
+  const acquirerTrend = useMemo(
+  () => acquirerMonthly(filteredRows),
+  [filteredRows]
+);
+
+const performance3DS = useMemo(
+  () => categoryMetrics(filteredRows, "3DS"),
+  [filteredRows]
+);
+
+const performanceTokenization = useMemo(
+  () => categoryMetrics(filteredRows, "tokenization"),
+  [filteredRows]
+);
+
+const performanceEntryMode = useMemo(
+  () => categoryMetrics(filteredRows, "entry mode code"),
+  [filteredRows]
+);
+
+const performanceWallet = useMemo(
+  () => categoryMetrics(filteredRows, "wallet"),
+  [filteredRows]
+);
+
+const ticketDeclineData = useMemo(
+  () => ticketDeclineMix(filteredRows),
+  [filteredRows]
+);
 
   const aiContext = useMemo(() => ({
     view: SECTIONS.find(([id]) => id === section)?.[1] || section,
@@ -658,41 +812,186 @@ function App() {
             )}
 
             {section === "performance" && (
-              <motion.div key="performance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div className="chart-grid two">
-                  <ChartCard title="Approval rate by channel" subtitle="Approval performance across channels">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={channelRates}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="approval" name="Approval Rate" fill="#66d4a6" radius={[6, 6, 0, 0]} />
+              <motion.div
+                key="performance"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+            
+                {/* ROW 1 — ACQUIRER APPROVAL TREND */}
+                <ChartCard
+                  title="Approval Rate by Acquirer"
+                  subtitle="Monthly approval rate by transaction count"
+                >
+                  <ResponsiveContainer width="100%" height={340}>
+                    <LineChart data={acquirerTrend}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fontSize: 11 }}
+                      />
+            
+                      <YAxis
+                        domain={([dataMin, dataMax]) => {
+                          const range = dataMax - dataMin;
+                          const padding = Math.max(range * 0.2, 0.5);
+            
+                          return [
+                            Math.max(0, dataMin - padding),
+                            Math.min(100, dataMax + padding),
+                          ];
+                        }}
+                        tick={{ fontSize: 11 }}
+                        tickFormatter={(v) => `${v.toFixed(1)}%`}
+                      />
+            
+                      <Tooltip
+                        formatter={(v) => `${Number(v).toFixed(2)}%`}
+                        labelFormatter={(label) => `Month: ${label}`}
+                      />
+            
+                      <Legend />
+            
+                      {[...new Set(acquirerTrend.map((x) => x.acquirer))].map(
+                        (acquirer, index) => (
+                          <Line
+                            key={acquirer}
+                            type="monotone"
+                            data={acquirerTrend.filter(
+                              (x) => x.acquirer === acquirer
+                            )}
+                            dataKey="approvalRate"
+                            name={acquirer}
+                            stroke={
+                              [
+                                "#46b5ff",
+                                "#66d4a6",
+                                "#ffb86b",
+                                "#ff6b87",
+                                "#8b7cff",
+                                "#20b2aa",
+                              ][index % 6]
+                            }
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                        )
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+            
+            
+                {/* ROW 2 — FOUR PIE CHARTS */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                    gap: "14px",
+                    marginTop: "16px",
+                  }}
+                >
+            
+                  <PerformancePie
+                    title="3DS"
+                    subtitle="Transaction share"
+                    data={performance3DS}
+                  />
+            
+                  <PerformancePie
+                    title="Tokenization"
+                    subtitle="Transaction share"
+                    data={performanceTokenization}
+                  />
+            
+                  <PerformancePie
+                    title="Entry Mode"
+                    subtitle="Transaction share"
+                    data={performanceEntryMode}
+                  />
+            
+                  <PerformancePie
+                    title="Wallet"
+                    subtitle="Transaction share"
+                    data={performanceWallet}
+                  />
+            
+                </div>
+            
+            
+                {/* ROW 3 — TICKET SIZE × DECLINE REASON */}
+                <div style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Decline Reason Mix by Ticket Size"
+                    subtitle="Share of decline reasons within each ticket size band"
+                  >
+                    <ResponsiveContainer width="100%" height={360}>
+                      <BarChart data={
+                        [...new Set(ticketDeclineData.map((x) => x.ticket))].map(
+                          (ticket) => {
+                            const row = { ticket };
+            
+                            ticketDeclineData
+                              .filter((x) => x.ticket === ticket)
+                              .forEach((x) => {
+                                row[x.reason] = x.share;
+                              });
+            
+                            return row;
+                          }
+                        )
+                      }>
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="ticket"
+                          tick={{ fontSize: 10 }}
+                        />
+            
+                        <YAxis
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(v) => `${v}%`}
+                        />
+            
+                        <Tooltip
+                          formatter={(v) => `${Number(v).toFixed(1)}%`}
+                        />
+            
+                        <Legend />
+            
+                        {[
+                          ...new Set(ticketDeclineData.map((x) => x.reason)),
+                        ].map((reason, index) => (
+                          <Bar
+                            key={reason}
+                            dataKey={reason}
+                            name={reason}
+                            stackId="declines"
+                            fill={
+                              [
+                                "#46b5ff",
+                                "#66d4a6",
+                                "#ffb86b",
+                                "#ff6b87",
+                                "#8b7cff",
+                                "#20b2aa",
+                                "#d88928",
+                                "#7c8cff",
+                              ][index % 8]
+                            }
+                          />
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
-                  <ChartCard title="Approved value trend" subtitle="Approved transaction amount over time">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <LineChart data={trend}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={money} />
-                        <Tooltip formatter={(v) => money(v)} />
-                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#46b5ff" strokeWidth={3} dot={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </ChartCard>
                 </div>
-                <div className="stat-table">
-                  <div className="table-title">Authorization performance by channel</div>
-                  {channelRates.map((x) => (
-                    <div className="table-row" key={x.name}>
-                      <span>{x.name}</span>
-                      <span>{rate(x.approval)}</span>
-                      <div className="mini-track"><i style={{ width: `${Math.min(100, x.approval)}%` }} /></div>
-                    </div>
-                  ))}
-                </div>
+            
               </motion.div>
             )}
 
@@ -889,7 +1188,105 @@ function FilterGroup({ group, filters, options, setFilters }) {
     </div>
   );
 }
+function PerformancePie({ title, subtitle, data }) {
+  const colors = [
+    "#46b5ff",
+    "#66d4a6",
+    "#ffb86b",
+    "#ff6b87",
+    "#8b7cff",
+    "#20b2aa",
+    "#d88928",
+    "#7c8cff",
+  ];
 
+  return (
+    <ChartCard title={title} subtitle={subtitle}>
+      <ResponsiveContainer width="100%" height={260}>
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="totalCount"
+            nameKey="name"
+            cx="50%"
+            cy="48%"
+            outerRadius={78}
+            innerRadius={38}
+            paddingAngle={2}
+          >
+            {data.map((entry, index) => (
+              <Cell
+                key={`performance-pie-${index}`}
+                fill={colors[index % colors.length]}
+              />
+            ))}
+          </Pie>
+
+          <Tooltip
+            formatter={(value, name, props) => {
+              const x = props?.payload;
+
+              return [
+                `${Number(x?.share || 0).toFixed(1)}%`,
+                "Transaction Share",
+              ];
+            }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+
+              const x = payload[0].payload;
+
+              return (
+                <div
+                  style={{
+                    background: "#ffffff",
+                    border: "1px solid #e3eaf2",
+                    borderRadius: "8px",
+                    padding: "10px 12px",
+                    boxShadow: "0 6px 18px rgba(24,38,56,.12)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      marginBottom: "6px",
+                      color: "#182638",
+                    }}
+                  >
+                    {x.name}
+                  </div>
+
+                  <div style={{ fontSize: "11px", color: "#718096" }}>
+                    Transaction Share:{" "}
+                    <strong style={{ color: "#182638" }}>
+                      {x.share.toFixed(1)}%
+                    </strong>
+                  </div>
+
+                  <div style={{ fontSize: "11px", color: "#718096" }}>
+                    Approval Rate — Count:{" "}
+                    <strong style={{ color: "#182638" }}>
+                      {x.approvalRateByCount.toFixed(2)}%
+                    </strong>
+                  </div>
+
+                  <div style={{ fontSize: "11px", color: "#718096" }}>
+                    Approval Rate — Amount:{" "}
+                    <strong style={{ color: "#182638" }}>
+                      {x.approvalRateByAmount.toFixed(2)}%
+                    </strong>
+                  </div>
+                </div>
+              );
+            }}
+          />
+
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    </ChartCard>
+  );
+}
 function Kpi({ label, value, sub }) {
   return (
     <div className="kpi-card">

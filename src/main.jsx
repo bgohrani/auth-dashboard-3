@@ -494,13 +494,25 @@ function App() {
                   </ChartCard>
                   <ChartCard title="Approved volume by channel" subtitle="Transaction mix across channels">
                     <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={channelMix}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
+                      <PieChart>
+                        <Pie
+                          data={channelMix}
+                          dataKey="approved"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={105}
+                          innerRadius={55}
+                          paddingAngle={2}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                        >
+                          {channelMix.map((entry, index) => (
+                            <Cell key={`cell-${index}`} />
+                          ))}
+                        </Pie>
                         <Tooltip formatter={(v) => number(v)} />
-                        <Bar dataKey="approved" name="Approved" fill="#46b5ff" radius={[6, 6, 0, 0]} />
-                      </BarChart>
+                        <Legend />
+                      </PieChart>
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>

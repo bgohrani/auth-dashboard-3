@@ -434,8 +434,8 @@ function App() {
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
                         <Tooltip formatter={(v) => number(v)} />
                         <Legend />
-                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(64,180,255,.18)" stroke="#46b5ff" strokeWidth={2} />
-                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(255,100,130,.10)" stroke="#ff6b87" strokeWidth={2} />
+                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(22,119,210,.14)" stroke="#1677d2" strokeWidth={2} />
+                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(220,82,105,.10)" stroke="#dc5269" strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -446,7 +446,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
                         <Tooltip formatter={(v) => number(v)} />
-                        <Bar dataKey="approved" name="Approved" fill="#46b5ff" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="approved" name="Approved" fill="#1677d2" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -475,7 +475,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="approval" name="Approval Rate" fill="#66d4a6" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="approval" name="Approval Rate" fill="#159a68" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -486,7 +486,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis tick={{ fontSize: 11 }} tickFormatter={money} />
                         <Tooltip formatter={(v) => money(v)} />
-                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#46b5ff" strokeWidth={3} dot={false} />
+                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#1677d2" strokeWidth={3} dot={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -522,7 +522,7 @@ function App() {
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                         <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="decline" name="Decline Rate" fill="#dc5269" radius={[6, 6, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -553,7 +553,7 @@ function App() {
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
                       <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
-                      <Bar dataKey="fraud" name="Fraud Rate" fill="#ffb86b" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="fraud" name="Fraud Rate" fill="#d88928" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </ChartCard>

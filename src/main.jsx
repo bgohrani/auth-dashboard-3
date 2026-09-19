@@ -324,7 +324,7 @@ function App() {
         <div>
           <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
           <h1>Loading authorization data</h1>
-          <p>Connecting to the live Google Sheets data source…</p>
+          <p>Connecting to the data source…</p>
         </div>
       </div>
     );

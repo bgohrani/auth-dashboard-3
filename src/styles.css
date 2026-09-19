@@ -142,3 +142,103 @@ button { cursor: pointer; }
 .filter-option input { width:12px; height:12px; margin:0; accent-color:#1677d2; }
 .filter-done { width:100%; border:0; border-radius:6px; background:#1677d2; color:#fff; font-size:9px; font-weight:750; padding:6px; margin-top:3px; }
 .filter-empty { padding:12px 5px; color:#182638; font-size:9px; }
+
+
+
+.mix-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 8px 2px;
+}
+
+.mix-section {
+  width: 100%;
+}
+
+.mix-header {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #182638;
+}
+
+.mix-bar {
+  width: 100%;
+  height: 24px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #edf2f7;
+}
+
+.mix-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.mix-segment.visa {
+  background: #46b5ff;
+}
+
+.mix-segment.mastercard {
+  background: #ff6b87;
+}
+
+.mix-segment.credit {
+  background: #46b5ff;
+}
+
+.mix-segment.debit {
+  background: #66d4a6;
+}
+
+.mix-segment.prepaid {
+  background: #ffb86b;
+}
+
+.mix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #718096;
+}
+
+.mix-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mix-legend strong {
+  color: #182638;
+}
+
+.mix-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.visa-dot {
+  background: #46b5ff;
+}
+
+.mastercard-dot {
+  background: #ff6b87;
+}
+
+.credit-dot {
+  background: #46b5ff;
+}
+
+.debit-dot {
+  background: #66d4a6;
+}
+
+.prepaid-dot {
+  background: #ffb86b;
+}

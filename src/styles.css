@@ -279,3 +279,68 @@ button { cursor: pointer; }
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+
+
+.ai-result-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ai-result-card {
+  background: #ffffff;
+  border: 1px solid #e3eaf2;
+  border-radius: 10px;
+  padding: 16px 17px;
+  box-shadow: 0 2px 8px rgba(24, 38, 56, 0.04);
+}
+
+.ai-result-card.storyline-card {
+  border-left: 3px solid #1677d2;
+  background: #fafdff;
+}
+
+.ai-result-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  color: #1677d2;
+  margin-bottom: 11px;
+}
+
+.ai-result-content {
+  color: #182638;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ai-result-content p {
+  margin: 0;
+}
+
+.ai-result-bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.ai-result-bullet:last-child {
+  margin-bottom: 0;
+}
+
+.ai-bullet-dot {
+  color: #1677d2;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.ai-result-bullet strong {
+  color: #182638;
+  font-weight: 700;
+}
+
+.ai-result-card:not(.storyline-card) .ai-result-content p {
+  margin-bottom: 4px;
+}

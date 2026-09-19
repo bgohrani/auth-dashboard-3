@@ -520,8 +520,14 @@ function App() {
                   </ChartCard>
                 </div>
                 <div className="chart-grid two">
-                  <ChartCard title="Top decline drivers" subtitle="Declined transaction count by response description">
-                    <SimpleBars data={declineReasons} />
+                  <ChartCard title="Top decline drivers" subtitle="% of total declined transactions by response description">
+                    <SimpleBars
+                      data={declineReasons.map((x) => ({
+                        ...x,
+                        value: pct(x.value, kpi.declined),
+                      }))}
+                      valueSuffix="%"
+                    />
                   </ChartCard>
                   <ChartCard title="Risk exposure" subtitle="Fraud and chargeback transaction counts">
                     <div className="risk-cards">

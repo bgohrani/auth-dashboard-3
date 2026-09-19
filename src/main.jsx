@@ -65,7 +65,7 @@ const number = (v) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 
 const rate = (v) => `${v.toFixed(1)}%`;
-const bps = (v) => `${Math.round(v)} BPS`;
+const bps = (v) => `${Number(v).toFixed(2)} BPS`;
 
 const normalizeRow = (r) => {
   const row = {};

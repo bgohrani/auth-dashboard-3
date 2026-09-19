@@ -946,6 +946,35 @@ const ticketDeclineData = useMemo(
             
             
                 {/* ROW 3 — TICKET SIZE × DECLINE REASON */}
+                
+            
+              </motion.div>
+            )}
+
+            {section === "decline" && (
+              <motion.div key="decline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="kpi-grid compact">
+                  <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
+                  <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
+                  <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
+                </div>
+                <div className="chart-grid two">
+                  <ChartCard title="Decline reason distribution" subtitle="Top response descriptions">
+                    <SimpleBars data={declineReasons} />
+                  </ChartCard>
+                  <ChartCard title="Decline rate by channel" subtitle="Channel-level decline exposure">
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={channelRates.map((x) => ({ ...x, decline: 100 - x.approval }))}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+
                 <div style={{ marginTop: "16px" }}>
                   <ChartCard
                     title="Decline Reason Mix by Ticket Size"
@@ -987,33 +1016,8 @@ const ticketDeclineData = useMemo(
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>
-            
-              </motion.div>
-            )}
 
-            {section === "decline" && (
-              <motion.div key="decline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <div className="kpi-grid compact">
-                  <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
-                  <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
-                  <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
-                </div>
-                <div className="chart-grid two">
-                  <ChartCard title="Decline reason distribution" subtitle="Top response descriptions">
-                    <SimpleBars data={declineReasons} />
-                  </ChartCard>
-                  <ChartCard title="Decline rate by channel" subtitle="Channel-level decline exposure">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={channelRates.map((x) => ({ ...x, decline: 100 - x.approval }))}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartCard>
-                </div>
+                
               </motion.div>
             )}
 

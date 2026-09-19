@@ -43,9 +43,21 @@ const FILTER_GROUPS = [
 const FILTER_FIELDS = FILTER_GROUPS.flatMap((group) => group.fields);
 
 const MODEL_OPTIONS = [
-  { provider: "gemini", model: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" },
-  { provider: "groq", model: "openai/gpt-oss-20b", label: "GPT-OSS 20B · Groq" },
-  { provider: "openrouter", model: "openrouter/free", label: "OpenRouter Free" },
+  {
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    label: "Gemini 3.5 Flash-Lite",
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-120b",
+    label: "GPT-OSS 120B · Groq",
+  },
+  {
+    provider: "openrouter",
+    model: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    label: "Nemotron 3 Ultra · OpenRouter Free",
+  },
 ];
 
 const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, []]));

@@ -45,7 +45,7 @@ button { cursor: pointer; }
 .topbar h1 { margin:5px 0 0; font-size:25px; letter-spacing:-.035em; }
 .top-actions { display:flex; align-items:center; gap:10px; }
 .scope-pill { padding:9px 12px; border:1px solid var(--line); border-radius:999px; color:#8ea0b4; font-size:11px; background:#f8fafc; }
-.scope-pill span { color:#dbe9f7; font-weight:700; }
+.scope-pill span { color:#; font-weight:700; }
 .ai-button { border:1px solid rgba(70,181,255,.32); background:#edf6ff; color:#1266b2; border-radius:9px; padding:10px 14px; font-weight:700; }
 .ai-button:hover { background:#e3f1ff; }
 .spark { color:#6ec8ff; margin-right:5px; }
@@ -55,7 +55,7 @@ button { cursor: pointer; }
 .tab.active:after { content:""; position:absolute; left:14px; right:14px; bottom:-1px; height:2px; background:#46b5ff; border-radius:2px; }
 .content { padding:25px 34px 50px; }
 .context-line { display:flex; justify-content:space-between; color:#182638; font-size:11px; margin-bottom:17px; }
-.context-line strong { color:#dbe9f7; }
+.context-line strong { color:#; }
 .kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:14px; }
 .kpi-grid.compact { grid-template-columns:repeat(4,1fr); }
 .kpi-card { min-height:110px; padding:17px; border:1px solid var(--line); background:#ffffff; border-radius:11px; }

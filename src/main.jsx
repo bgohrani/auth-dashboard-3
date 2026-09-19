@@ -348,40 +348,72 @@ function ticketDeclineMix(rows) {
 function renderAIResult(text) {
   if (!text) return null;
 
-  const sections = text
-    .split(/\n(?=[A-Z][A-Z &'-]{4,}\n)/)
-    .map((block) => block.trim())
+  const cleanedText = text
+    .replace(/\r\n/g, "\n")
+    .replace(/^#{1,6}\s*/gm, "");
+
+  const sectionNames = [
+    "EXECUTIVE STORYLINE",
+    "KEY OBSERVATIONS",
+    "AREAS REQUIRING ATTENTION",
+    "POSSIBLE DRIVERS",
+    "RECOMMENDED ANALYTICAL FOLLOW-UPS",
+    "STORYLINE",
+  ];
+
+  const headingRegex = new RegExp(
+    `\\n?(${sectionNames.join("|")})\\s*\\n?`,
+    "gi"
+  );
+
+  const parts = cleanedText
+    .split(headingRegex)
+    .map((x) => x.trim())
     .filter(Boolean);
+
+  const sections = [];
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+
+    if (sectionNames.includes(part.toUpperCase())) {
+      sections.push({
+        title: part.toUpperCase(),
+        content: parts[i + 1] || "",
+      });
+      i++;
+    }
+  }
 
   return (
     <div className="ai-result-sections">
-      {sections.map((block, index) => {
-        const lines = block.split("\n").map((line) => line.trim()).filter(Boolean);
-        const title = lines[0];
-        const content = lines.slice(1);
-
-        const isStoryline =
-          title === "EXECUTIVE STORYLINE" || title === "STORYLINE";
+      {sections.map((section, index) => {
+        const lines = section.content
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean);
 
         return (
-          <div
-            key={`${title}-${index}`}
-            className={`ai-result-card ${isStoryline ? "storyline-card" : ""}`}
-          >
-            <div className="ai-result-title">{title}</div>
+          <div className="ai-result-card" key={`${section.title}-${index}`}>
+            <div className="ai-result-title">
+              {section.title}
+            </div>
 
             <div className="ai-result-content">
-              {content.map((line, i) => {
+              {lines.map((line, i) => {
                 const bullet = line.match(/^[-•]\s*(.*)/);
 
                 if (bullet) {
                   const value = bullet[1];
 
-                  const boldMatch = value.match(/^\*\*(.*?)\*\*\s*(.*)$/);
+                  const boldMatch = value.match(
+                    /^\*\*(.*?)\*\*\s*(.*)$/
+                  );
 
                   return (
                     <div className="ai-result-bullet" key={i}>
                       <span className="ai-bullet-dot">•</span>
+
                       <div>
                         {boldMatch ? (
                           <>

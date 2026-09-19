@@ -529,10 +529,128 @@ function App() {
                       valueSuffix="%"
                     />
                   </ChartCard>
-                  <ChartCard title="Risk exposure" subtitle="Fraud and chargeback transaction counts">
-                    <div className="risk-cards">
-                      <RiskMetric label="Fraud" value={number(kpi.fraud)} rate={rate(kpi.fraudRate)} />
-                      <RiskMetric label="Chargebacks" value={number(kpi.cb)} rate={rate(kpi.cbRate)} />
+                  <ChartCard title="Transaction mix" subtitle="Network and product mix by transaction count">
+                    <div className="mix-bars">
+                  
+                      <div className="mix-section">
+                        <div className="mix-header">
+                          <span>Card Network</span>
+                        </div>
+                  
+                        <div className="mix-bar">
+                          {(() => {
+                            const visa = filteredRows
+                              .filter((r) => String(r.bin || "").startsWith("4"))
+                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                            const mastercard = filteredRows
+                              .filter((r) => String(r.bin || "").startsWith("5"))
+                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                            const total = visa + mastercard;
+                            const visaPct = pct(visa, total);
+                            const mcPct = pct(mastercard, total);
+                  
+                            return (
+                              <>
+                                <div
+                                  className="mix-segment visa"
+                                  style={{ width: `${visaPct}%` }}
+                                />
+                                <div
+                                  className="mix-segment mastercard"
+                                  style={{ width: `${mcPct}%` }}
+                                />
+                              </>
+                            );
+                          })()}
+                        </div>
+                  
+                        {(() => {
+                          const visa = filteredRows
+                            .filter((r) => String(r.bin || "").startsWith("4"))
+                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                          const mastercard = filteredRows
+                            .filter((r) => String(r.bin || "").startsWith("5"))
+                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                          const total = visa + mastercard;
+                  
+                          return (
+                            <div className="mix-legend">
+                              <span><i className="mix-dot visa-dot" /> Visa <strong>{pct(visa, total).toFixed(1)}%</strong></span>
+                              <span><i className="mix-dot mastercard-dot" /> Mastercard <strong>{pct(mastercard, total).toFixed(1)}%</strong></span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                  
+                      <div className="mix-section">
+                        <div className="mix-header">
+                          <span>Product Type</span>
+                        </div>
+                  
+                        <div className="mix-bar">
+                          {(() => {
+                            const credit = filteredRows
+                              .filter((r) => String(r["prod type"]).toLowerCase().includes("credit"))
+                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                            const debit = filteredRows
+                              .filter((r) => String(r["prod type"]).toLowerCase().includes("debit"))
+                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                            const prepaid = filteredRows
+                              .filter((r) => String(r["prod type"]).toLowerCase().includes("prepaid"))
+                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                            const total = credit + debit + prepaid;
+                  
+                            return (
+                              <>
+                                <div
+                                  className="mix-segment credit"
+                                  style={{ width: `${pct(credit, total)}%` }}
+                                />
+                                <div
+                                  className="mix-segment debit"
+                                  style={{ width: `${pct(debit, total)}%` }}
+                                />
+                                <div
+                                  className="mix-segment prepaid"
+                                  style={{ width: `${pct(prepaid, total)}%` }}
+                                />
+                              </>
+                            );
+                          })()}
+                        </div>
+                  
+                        {(() => {
+                          const credit = filteredRows
+                            .filter((r) => String(r["prod type"]).toLowerCase().includes("credit"))
+                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                          const debit = filteredRows
+                            .filter((r) => String(r["prod type"]).toLowerCase().includes("debit"))
+                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                          const prepaid = filteredRows
+                            .filter((r) => String(r["prod type"]).toLowerCase().includes("prepaid"))
+                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
+                  
+                          const total = credit + debit + prepaid;
+                  
+                          return (
+                            <div className="mix-legend">
+                              <span><i className="mix-dot credit-dot" /> Credit <strong>{pct(credit, total).toFixed(1)}%</strong></span>
+                              <span><i className="mix-dot debit-dot" /> Debit <strong>{pct(debit, total).toFixed(1)}%</strong></span>
+                              <span><i className="mix-dot prepaid-dot" /> Prepaid <strong>{pct(prepaid, total).toFixed(1)}%</strong></span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                  
                     </div>
                   </ChartCard>
                 </div>

@@ -226,44 +226,42 @@ function categoryMetrics(rows, key) {
   const map = new Map();
 
   rows.forEach((r) => {
-    const rawValue = r[key];
-    const category =
-      rawValue === null ||
-      rawValue === undefined ||
-      String(rawValue).trim() === ""
-        ? "NA"
-        : String(rawValue).trim();
+    const value = String(r[key] ?? "").trim();
 
-    const x = map.get(category) || {
-      name: category,
-      approved: 0,
-      declined: 0,
-      approvedAmt: 0,
-      declinedAmt: 0,
-    };
+    // Exclude blank / NA values from the pie
+    if (!value || value.toUpperCase() === "NA") return;
 
-    x.approved += n(r["approved count"]);
-    x.declined += n(r["decline count"]);
-    x.approvedAmt += n(r["approved amt"]);
-    x.declinedAmt += n(r["decline amount"]);
+    const count =
+      n(r["approved count"]) +
+      n(r["decline count"]);
 
-    map.set(category, x);
+    const approved = n(r["approved count"]);
+    const approvedAmt = n(r["approved amt"]);
+    const declineAmt = n(r["decline amount"]);
+
+    if (!map.has(value)) {
+      map.set(value, {
+        name: value,
+        count: 0,
+        approved: 0,
+        approvedAmt: 0,
+        totalAmt: 0,
+      });
+    }
+
+    const x = map.get(value);
+
+    x.count += count;
+    x.approved += approved;
+    x.approvedAmt += approvedAmt;
+    x.totalAmt += approvedAmt + declineAmt;
   });
-
-  const totalCount = [...map.values()].reduce(
-    (sum, x) => sum + x.approved + x.declined,
-    0
-  );
 
   return [...map.values()].map((x) => ({
     ...x,
-    totalCount: x.approved + x.declined,
-    share: pct(x.approved + x.declined, totalCount),
-    approvalRateByCount: pct(x.approved, x.approved + x.declined),
-    approvalRateByAmount: pct(
-      x.approvedAmt,
-      x.approvedAmt + x.declinedAmt
-    ),
+    share: x.count,
+    approvalRateCount: pct(x.approved, x.count),
+    approvalRateAmount: pct(x.approvedAmt, x.totalAmt),
   }));
 }
 

@@ -357,6 +357,7 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
   const [aiResult, setAiResult] = useState("");
+  const [aiController, setAiController] = useState(null);
 
   useEffect(() => {
     Papa.parse(GOOGLE_SHEET_CSV_URL, {
@@ -563,6 +564,7 @@ const ticketDeclineData = useMemo(
     setAiStatus("Generating insights…");
     setAiResult("");
     const controller = new AbortController();
+    setAiController(controller);
     try {
       const response = await fetch(AI_API_URL, {
         method: "POST",
@@ -592,6 +594,7 @@ analysisMode: mode,
       }
     } finally {
       setAiLoading(false);
+      setAiController(null);
     }
   }
 
@@ -1343,26 +1346,37 @@ analysisMode: mode,
                 <button
                   className={`generate-btn ${aiMode === "current_section" ? "active" : ""}`}
                   onClick={() => {
+                    if (aiLoading) {
+                      aiController?.abort();
+                      return;
+                    }
+                  
                     setAiMode("current_section");
                     generateInsights("current_section");
                   }}
                   disabled={aiLoading}
                 >
                   {aiLoading && aiMode === "current_section"
-                    ? "Analyzing…"
+                    ? "Stop Analysis"
                     : "Analyze Current Section"}
                 </button>
               
                 <button
                   className={`generate-btn ${aiMode === "whole_dashboard" ? "active" : ""}`}
                   onClick={() => {
+                    if (aiLoading) {
+                      aiController?.abort();
+                      return;
+                    }
+                  
                     setAiMode("whole_dashboard");
                     generateInsights("whole_dashboard");
                   }}
+                  
                   disabled={aiLoading}
                 >
                   {aiLoading && aiMode === "whole_dashboard"
-                    ? "Analyzing…"
+                    ? "Stop Analysis"
                     : "Analyze Whole Dashboard"}
                 </button>
               </div>

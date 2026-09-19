@@ -507,7 +507,10 @@ function App() {
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                         >
                           {channelMix.map((entry, index) => (
-                            <Cell key={`cell-${index}`} />
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={["#46b5ff", "#66d4a6", "#ffb86b", "#ff6b87"][index % 4]}
+                            />
                           ))}
                         </Pie>
                         <Tooltip formatter={(v) => number(v)} />

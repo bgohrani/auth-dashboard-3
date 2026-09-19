@@ -3,331 +3,684 @@ import { createRoot } from "react-dom/client";
 import Papa from "papaparse";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
 } from "recharts";
+import { GOOGLE_SHEET_CSV_URL, AI_API_URL } from "./dataSource";
 import "./styles.css";
 
-const NAV = [
+const SECTIONS = [
   ["overview", "Overview"],
-  ["authorization", "Authorization Performance"],
-  ["declines", "Decline Analysis"],
-  ["risk", "Fraud & Chargebacks"]
+  ["performance", "Authorization Performance"],
+  ["decline", "Decline Analysis"],
+  ["risk", "Fraud & Chargebacks"],
 ];
 
-const FILTERS = [
+const FILTER_FIELDS = [
   ["year_month", "Month"],
   ["issuer_name", "Issuer"],
   ["acquirer_name", "Acquirer"],
-  ["issuer_country", "Country"],
+  ["issuer_country", "Issuer Country"],
   ["channel", "Channel"],
   ["3DS", "3DS"],
   ["tokenization", "Tokenization"],
   ["entry mode code", "Entry Mode"],
   ["prod type", "Product"],
   ["wallet", "Wallet"],
-  ["ticket size bands", "Ticket Size"]
+  ["ticket size bands", "Ticket Band"],
 ];
 
-const fmt = (n, digits=0) => Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: digits });
-const money = n => {
-  const v = Number(n || 0);
-  if (Math.abs(v) >= 1e9) return `$${(v/1e9).toFixed(2)}B`;
-  if (Math.abs(v) >= 1e6) return `$${(v/1e6).toFixed(2)}M`;
-  if (Math.abs(v) >= 1e3) return `$${(v/1e3).toFixed(1)}K`;
-  return `$${v.toFixed(0)}`;
+const MODEL_OPTIONS = [
+  { provider: "gemini", model: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite" },
+  { provider: "groq", model: "openai/gpt-oss-20b", label: "GPT-OSS 20B · Groq" },
+  { provider: "openrouter", model: "openrouter/free", label: "OpenRouter Free" },
+];
+
+const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, "All"]));
+
+const n = (v) => {
+  const x = Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(x) ? x : 0;
 };
-const pct = (n, digits=1) => `${Number(n || 0).toFixed(digits)}%`;
-const sum = (rows, key) => rows.reduce((a,r) => a + Number(r[key] || 0), 0);
-const uniq = (rows, key) => [...new Set(rows.map(r => r[key]).filter(v => v !== "" && v != null))];
 
-function normalizeRows(rows) {
-  return rows.map(r => ({
-    ...r,
-    "approved count": +r["approved count"] || 0,
-    "decline count": +r["decline count"] || 0,
-    "approved amt": +r["approved amt"] || 0,
-    "decline amount": +r["decline amount"] || 0,
-    "fraud count": +r["fraud count"] || 0,
-    "fraud amt": +r["fraud amt"] || 0,
-    "chargeback count": +r["chargeback count"] || 0,
-    "first presentment amt": +r["first presentment amt"] || 0,
-    "second presentment amt": +r["second presentment amt"] || 0,
-    "arbitration amt": +r["arbitration amt"] || 0,
-    "chargeback total": +r["chargeback total"] || 0
-  }));
-}
+const pct = (a, b) => (b ? (a / b) * 100 : 0);
+const money = (v) =>
+  new Intl.NumberFormat("en-US", {
+    notation: Math.abs(v) >= 1e9 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(v);
 
-function aggregate(rows, key, valueKey, limit=10) {
-  const m = new Map();
-  rows.forEach(r => {
-    const k = r[key] || "Unknown";
-    m.set(k, (m.get(k) || 0) + Number(r[valueKey] || 0));
+const number = (v) =>
+  new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
+
+const rate = (v) => `${v.toFixed(1)}%`;
+
+const normalizeRow = (r) => {
+  const row = {};
+  Object.entries(r).forEach(([k, v]) => {
+    row[String(k).trim()] = typeof v === "string" ? v.trim() : v;
   });
-  return [...m.entries()].map(([name,value]) => ({name,value})).sort((a,b)=>b.value-a.value).slice(0,limit);
-}
+  return row;
+};
 
-function kpis(rows) {
-  const approved = sum(rows,"approved count"), declined = sum(rows,"decline count");
-  const volume = approved + declined;
-  const fraud = sum(rows,"fraud count"), cb = sum(rows,"chargeback count");
+function aggregate(rows) {
+  let approved = 0;
+  let declined = 0;
+  let approvedAmt = 0;
+  let declinedAmt = 0;
+  let fraud = 0;
+  let fraudAmt = 0;
+  let cb = 0;
+  let cbAmt = 0;
+
+  rows.forEach((r) => {
+    approved += n(r["approved count"]);
+    declined += n(r["decline count"]);
+    approvedAmt += n(r["approved amt"]);
+    declinedAmt += n(r["decline amount"]);
+    fraud += n(r["fraud count"]);
+    fraudAmt += n(r["fraud amt"]);
+    cb += n(r["chargeback count"]);
+    cbAmt += n(r["chargeback total"]);
+  });
+
+  const total = approved + declined;
   return {
-    volume, value: sum(rows,"approved amt") + sum(rows,"decline amount"),
-    approved, declined, approvalRate: volume ? approved/volume*100 : 0,
-    declineRate: volume ? declined/volume*100 : 0,
-    fraudRate: volume ? fraud/volume*100 : 0,
-    chargebackRate: volume ? cb/volume*100 : 0,
-    fraud, cb, fraudAmt: sum(rows,"fraud amt"), cbAmt: sum(rows,"chargeback total")
+    approved,
+    declined,
+    total,
+    approvedAmt,
+    declinedAmt,
+    fraud,
+    fraudAmt,
+    cb,
+    cbAmt,
+    approvalRate: pct(approved, total),
+    declineRate: pct(declined, total),
+    fraudRate: pct(fraud, approved),
+    cbRate: pct(cb, approved),
+    avgApprovedTicket: approved ? approvedAmt / approved : 0,
   };
 }
 
+function groupBy(rows, key, valueFn = (r) => n(r["approved count"]) + n(r["decline count"])) {
+  const map = new Map();
+  rows.forEach((r) => {
+    const k = r[key] || "Unknown";
+    map.set(k, (map.get(k) || 0) + valueFn(r));
+  });
+  return [...map.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function groupRates(rows, key) {
+  const map = new Map();
+  rows.forEach((r) => {
+    const k = r[key] || "Unknown";
+    const current = map.get(k) || { approved: 0, declined: 0, fraud: 0 };
+    current.approved += n(r["approved count"]);
+    current.declined += n(r["decline count"]);
+    current.fraud += n(r["fraud count"]);
+    map.set(k, current);
+  });
+  return [...map.entries()]
+    .map(([name, x]) => ({
+      name,
+      approval: pct(x.approved, x.approved + x.declined),
+      fraud: pct(x.fraud, x.approved),
+    }))
+    .sort((a, b) => b.approval - a.approval);
+}
+
+function monthly(rows) {
+  const map = new Map();
+  rows.forEach((r) => {
+    const k = r.year_month || "Unknown";
+    const x = map.get(k) || { approved: 0, declined: 0, approvedAmt: 0, declineAmt: 0 };
+    x.approved += n(r["approved count"]);
+    x.declined += n(r["decline count"]);
+    x.approvedAmt += n(r["approved amt"]);
+    x.declineAmt += n(r["decline amount"]);
+    map.set(k, x);
+  });
+  return [...map.entries()]
+    .sort(([a], [b]) => String(a).localeCompare(String(b)))
+    .map(([name, x]) => ({
+      name,
+      approved: x.approved,
+      declined: x.declined,
+      approvalRate: pct(x.approved, x.approved + x.declined),
+      approvedAmt: x.approvedAmt,
+      declineAmt: x.declineAmt,
+    }));
+}
+
 function App() {
-  const [rows,setRows] = useState([]);
-  const [view,setView] = useState("overview");
-  const [filters,setFilters] = useState(Object.fromEntries(FILTERS.map(([k])=>[k,"All"])));
-  const [aiOpen,setAiOpen] = useState(false);
-  const [aiLoading,setAiLoading] = useState(false);
-  const [aiText,setAiText] = useState("");
-  const [loaded,setLoaded] = useState(false);
-  const [dataError,setDataError] = useState("");
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [section, setSection] = useState("overview");
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(MODEL_OPTIONS[0]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState("");
+  const [aiResult, setAiResult] = useState("");
 
   useEffect(() => {
-    // Load the dashboard data directly from the supplied Google Sheet.
-    // The Google Sheet must be shared/published so its CSV export is readable.
-    const sheetCsvUrl =
-      "https://docs.google.com/spreadsheets/d/1tadSeuYgEliS2cOkH-9uR31NUDS7Mt2PXjiB_-1EW44/export?format=csv";
-
-    Papa.parse(sheetCsvUrl, {
+    Papa.parse(GOOGLE_SHEET_CSV_URL, {
       download: true,
       header: true,
       skipEmptyLines: true,
-      complete: res => {
-        if (res.errors?.length) {
-          console.warn("Google Sheets CSV parse warnings:", res.errors.slice(0, 5));
-        }
-        setRows(normalizeRows(res.data));
-        setLoaded(true);
+      complete: (results) => {
+        setRows((results.data || []).map(normalizeRow));
+        setLoading(false);
       },
-      error: err => {
-        console.error("Could not load Google Sheets data:", err);
-        setDataError("Could not load the Google Sheet. Check that the sheet is shared/published and try refreshing.");
-        setLoaded(true);
-      }
+      error: (err) => {
+        setLoadError(err?.message || "Unable to load Google Sheet.");
+        setLoading(false);
+      },
     });
   }, []);
 
-  const filtered = useMemo(() => rows.filter(r =>
-    Object.entries(filters).every(([k,v]) => v === "All" || String(r[k]) === String(v))
-  ), [rows,filters]);
+  const options = useMemo(() => {
+    const out = {};
+    FILTER_FIELDS.forEach(([key]) => {
+      out[key] = [...new Set(rows.map((r) => r[key]).filter(Boolean))].sort((a, b) =>
+        String(a).localeCompare(String(b), undefined, { numeric: true })
+      );
+    });
+    return out;
+  }, [rows]);
 
-  const metrics = useMemo(() => kpis(filtered), [filtered]);
+  const filteredRows = useMemo(
+    () =>
+      rows.filter((r) =>
+        FILTER_FIELDS.every(([key]) => filters[key] === "All" || String(r[key]) === filters[key])
+      ),
+    [rows, filters]
+  );
 
-  const options = useMemo(() => Object.fromEntries(
-    FILTERS.map(([k]) => [k, uniq(rows,k).sort()])
-  ), [rows]);
+  const kpi = useMemo(() => aggregate(filteredRows), [filteredRows]);
+  const trend = useMemo(() => monthly(filteredRows), [filteredRows]);
 
-  const context = useMemo(() => buildAIContext(view, filters, filtered), [view,filters,filtered]);
+  const channelMix = useMemo(
+    () =>
+      groupBy(filteredRows, "channel").map((x) => ({
+        ...x,
+        approved: filteredRows
+          .filter((r) => (r.channel || "Unknown") === x.name)
+          .reduce((s, r) => s + n(r["approved count"]), 0),
+      })),
+    [filteredRows]
+  );
 
-  async function generateAI() {
-    setAiOpen(true); setAiLoading(true); setAiText("");
-    const endpoint = import.meta.env.VITE_AI_INSIGHTS_URL;
+  const declineReasons = useMemo(
+    () =>
+      groupBy(filteredRows, "response_description", (r) => n(r["decline count"])).slice(0, 8),
+    [filteredRows]
+  );
+
+  const fraudReasons = useMemo(
+    () => groupBy(filteredRows, "fraud reason", (r) => n(r["fraud count"])).filter((x) => x.name !== "Unknown").slice(0, 8),
+    [filteredRows]
+  );
+
+  const cbReasons = useMemo(
+    () =>
+      groupBy(filteredRows, "chargeback reason", (r) => n(r["chargeback count"]))
+        .filter((x) => x.name !== "Unknown")
+        .slice(0, 8),
+    [filteredRows]
+  );
+
+  const channelRates = useMemo(() => groupRates(filteredRows, "channel"), [filteredRows]);
+
+  const aiContext = useMemo(() => ({
+    view: SECTIONS.find(([id]) => id === section)?.[1] || section,
+    filters: Object.fromEntries(
+      Object.entries(filters).filter(([, value]) => value !== "All")
+    ),
+    rowsInScope: filteredRows.length,
+    kpis: {
+      authorizationTransactions: kpi.total,
+      approvedTransactions: kpi.approved,
+      declinedTransactions: kpi.declined,
+      approvalRate: kpi.approvalRate,
+      declineRate: kpi.declineRate,
+      approvedAmount: kpi.approvedAmt,
+      declinedAmount: kpi.declinedAmt,
+      fraudTransactions: kpi.fraud,
+      fraudRate: kpi.fraudRate,
+      fraudAmount: kpi.fraudAmt,
+      chargebackTransactions: kpi.cb,
+      chargebackRate: kpi.cbRate,
+      chargebackAmount: kpi.cbAmt,
+    },
+    monthlyVolume: trend.slice(-12),
+    channelApprovalRates: channelRates,
+    declineDrivers: declineReasons,
+    fraudDrivers: fraudReasons,
+    chargebackDrivers: cbReasons,
+  }), [
+    section, filters, filteredRows.length, kpi, trend, channelRates, declineReasons, fraudReasons, cbReasons
+  ]);
+
+  async function generateInsights() {
+    setAiLoading(true);
+    setAiStatus("Generating insights…");
+    setAiResult("");
+    const controller = new AbortController();
     try {
-      if (endpoint) {
-        const res = await fetch(endpoint, {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(context)
-        });
-        if (!res.ok) throw new Error(`AI endpoint returned ${res.status}`);
-        const data = await res.json();
-        setAiText(data.insights || data.text || JSON.stringify(data, null, 2));
-      } else {
-        await new Promise(r=>setTimeout(r,650));
-        setAiText(localInsights(view, filtered, metrics));
+      const response = await fetch(AI_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: selectedModel.provider,
+          model: selectedModel.model,
+          dashboardData: aiContext,
+        }),
+        signal: controller.signal,
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error || "AI request failed.");
       }
-    } catch (e) {
-      setAiText(`AI service could not be reached. ${e.message}`);
-    } finally { setAiLoading(false); }
+      setAiResult(payload.insights || "No insights were returned.");
+      setAiStatus("Insights generated");
+    } catch (err) {
+      if (err?.name === "AbortError") setAiStatus("Generation stopped");
+      else {
+        setAiStatus("Generation failed");
+        setAiResult(`Unable to generate insights: ${err?.message || "Unknown error"}`);
+      }
+    } finally {
+      setAiLoading(false);
+    }
   }
 
-  if (!loaded) return <div className="loading"><div className="loader"></div><span>Loading authorization intelligence…</span></div>;
-  if (dataError) return <div className="loading"><div><strong>Data connection error</strong><br/><span>{dataError}</span></div></div>;
+  function resetFilters() {
+    setFilters(EMPTY_FILTERS);
+  }
+
+  if (loading) {
+    return (
+      <div className="app loading-screen">
+        <div className="loader-orb" />
+        <div>
+          <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
+          <h1>Loading authorization data</h1>
+          <p>Connecting to the live Google Sheets data source…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="app loading-screen">
+        <div>
+          <div className="eyebrow">DATA CONNECTION ERROR</div>
+          <h1>Unable to load the dashboard data</h1>
+          <p>{loadError}</p>
+          <p className="muted">Check that the Google Sheet is shared for viewing and try refreshing.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
+    <div className="app">
+      <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">A</div>
-          <div><div className="brand-title">Authorization Intelligence</div><div className="brand-sub">Payments analytics</div></div>
+          <div>
+            <div className="brand-name">Authorization</div>
+            <div className="brand-sub">INTELLIGENCE</div>
+          </div>
         </div>
-        <nav className="nav">
-          {NAV.map(([id,label]) => <button key={id} className={`nav-btn ${view===id?"active":""}`} onClick={()=>setView(id)}>{label}</button>)}
-        </nav>
-        <button className="ai-top" onClick={generateAI}><span>✦</span> AI Insights</button>
-      </header>
 
-      <div className="workspace">
-        <aside className="sidebar">
-          <div className="filter-head"><div><div className="eyebrow">GLOBAL FILTERS</div><h3>Data scope</h3></div>
-            <button className="reset" onClick={()=>setFilters(Object.fromEntries(FILTERS.map(([k])=>[k,"All"])))}>Reset</button>
-          </div>
-          <div className="filter-note">Filters persist across all four views.</div>
-          {FILTERS.map(([key,label],i) => (
-            <div className={`filter ${i>4 ? "secondary-filter":""}`} key={key}>
-              <label>{label}</label>
-              <select value={filters[key]} onChange={e=>setFilters({...filters,[key]:e.target.value})}>
-                <option>All</option>{options[key].map(v=><option key={String(v)}>{v}</option>)}
+        <div className="side-label">GLOBAL FILTERS</div>
+        <div className="filters">
+          {FILTER_FIELDS.map(([key, label]) => (
+            <label key={key} className="filter">
+              <span>{label}</span>
+              <select
+                value={filters[key]}
+                onChange={(e) => setFilters((f) => ({ ...f, [key]: e.target.value }))}
+              >
+                <option>All</option>
+                {(options[key] || []).map((value) => (
+                  <option key={value} value={value}>{value}</option>
+                ))}
               </select>
-            </div>
+            </label>
           ))}
-          <div className="scope"><span className="dot"></span>{fmt(filtered.length)} rows in scope</div>
-        </aside>
+        </div>
+        <button className="reset-btn" onClick={resetFilters}>Reset all filters</button>
 
-        <main className="content">
-          <div className="view-head">
-            <div>
-              <div className="eyebrow">ANALYTICS VIEW</div>
-              <h1>{NAV.find(x=>x[0]===view)[1]}</h1>
-              <p>{viewDescription(view)}</p>
-            </div>
-            <button className="ai-secondary" onClick={generateAI}>✦ Generate insights</button>
+        <div className="sidebar-foot">
+          <span className="live-dot" />
+          <span>Live Google Sheets source</span>
+        </div>
+      </aside>
+
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">PAYMENTS ANALYTICS</div>
+            <h1>Authorization Intelligence</h1>
           </div>
-          {view==="overview" && <Overview rows={filtered} metrics={metrics}/>}
-          {view==="authorization" && <Authorization rows={filtered} metrics={metrics}/>}
-          {view==="declines" && <Declines rows={filtered} metrics={metrics}/>}
-          {view==="risk" && <Risk rows={filtered} metrics={metrics}/>}
-        </main>
-      </div>
+          <div className="top-actions">
+            <div className="scope-pill">
+              <span>{number(filteredRows.length)}</span> rows in scope
+            </div>
+            <button className="ai-button" onClick={() => setAiOpen(true)}>
+              <span className="spark">✦</span> AI Insights
+            </button>
+          </div>
+        </header>
+
+        <nav className="tabs">
+          {SECTIONS.map(([id, label]) => (
+            <button
+              key={id}
+              className={section === id ? "tab active" : "tab"}
+              onClick={() => setSection(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <section className="content">
+          <div className="context-line">
+            <span>Current view: <strong>{SECTIONS.find(([id]) => id === section)?.[1]}</strong></span>
+            <span>Filtered authorization activity</span>
+          </div>
+
+          <div className="kpi-grid">
+            <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+            <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
+            <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
+            <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
+            <Kpi label="Fraud Rate" value={rate(kpi.fraudRate)} sub={`${number(kpi.fraud)} fraud transactions`} />
+            <Kpi label="Chargeback Rate" value={rate(kpi.cbRate)} sub={`${number(kpi.cb)} chargebacks`} />
+          </div>
+
+          <AnimatePresence mode="wait">
+            {section === "overview" && (
+              <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="chart-grid two">
+                  <ChartCard title="Authorization trend" subtitle="Approved and declined transaction volume">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart data={trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
+                        <Tooltip formatter={(v) => number(v)} />
+                        <Legend />
+                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(64,180,255,.18)" stroke="#46b5ff" strokeWidth={2} />
+                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(255,100,130,.10)" stroke="#ff6b87" strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                  <ChartCard title="Approved volume by channel" subtitle="Transaction mix across channels">
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={channelMix}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
+                        <Tooltip formatter={(v) => number(v)} />
+                        <Bar dataKey="approved" name="Approved" fill="#46b5ff" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+                <div className="chart-grid two">
+                  <ChartCard title="Top decline drivers" subtitle="Declined transaction count by response description">
+                    <SimpleBars data={declineReasons} />
+                  </ChartCard>
+                  <ChartCard title="Risk exposure" subtitle="Fraud and chargeback transaction counts">
+                    <div className="risk-cards">
+                      <RiskMetric label="Fraud" value={number(kpi.fraud)} rate={rate(kpi.fraudRate)} />
+                      <RiskMetric label="Chargebacks" value={number(kpi.cb)} rate={rate(kpi.cbRate)} />
+                    </div>
+                  </ChartCard>
+                </div>
+              </motion.div>
+            )}
+
+            {section === "performance" && (
+              <motion.div key="performance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="chart-grid two">
+                  <ChartCard title="Approval rate by channel" subtitle="Approval performance across channels">
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={channelRates}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                        <Bar dataKey="approval" name="Approval Rate" fill="#66d4a6" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                  <ChartCard title="Approved value trend" subtitle="Approved transaction amount over time">
+                    <ResponsiveContainer width="100%" height={320}>
+                      <LineChart data={trend}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} tickFormatter={money} />
+                        <Tooltip formatter={(v) => money(v)} />
+                        <Line type="monotone" dataKey="approvedAmt" name="Approved Value" stroke="#46b5ff" strokeWidth={3} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+                <div className="stat-table">
+                  <div className="table-title">Authorization performance by channel</div>
+                  {channelRates.map((x) => (
+                    <div className="table-row" key={x.name}>
+                      <span>{x.name}</span>
+                      <span>{rate(x.approval)}</span>
+                      <div className="mini-track"><i style={{ width: `${Math.min(100, x.approval)}%` }} /></div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {section === "decline" && (
+              <motion.div key="decline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="kpi-grid compact">
+                  <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
+                  <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
+                  <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
+                </div>
+                <div className="chart-grid two">
+                  <ChartCard title="Decline reason distribution" subtitle="Top response descriptions">
+                    <SimpleBars data={declineReasons} />
+                  </ChartCard>
+                  <ChartCard title="Decline rate by channel" subtitle="Channel-level decline exposure">
+                    <ResponsiveContainer width="100%" height={320}>
+                      <BarChart data={channelRates.map((x) => ({ ...x, decline: 100 - x.approval }))}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
+                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+              </motion.div>
+            )}
+
+            {section === "risk" && (
+              <motion.div key="risk" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                <div className="kpi-grid compact">
+                  <Kpi label="Fraud Transactions" value={number(kpi.fraud)} sub={`${rate(kpi.fraudRate)} of approved`} />
+                  <Kpi label="Fraud Exposure" value={money(kpi.fraudAmt)} sub="fraud amount" />
+                  <Kpi label="Chargebacks" value={number(kpi.cb)} sub={`${rate(kpi.cbRate)} of approved`} />
+                  <Kpi label="Chargeback Exposure" value={money(kpi.cbAmt)} sub="chargeback total" />
+                </div>
+                <div className="chart-grid two">
+                  <ChartCard title="Fraud reason distribution" subtitle="Fraud counts by reason">
+                    <SimpleBars data={fraudReasons} />
+                  </ChartCard>
+                  <ChartCard title="Chargeback reason distribution" subtitle="Chargeback counts by reason">
+                    <SimpleBars data={cbReasons} />
+                  </ChartCard>
+                </div>
+                <ChartCard title="Fraud rate by channel" subtitle="Fraud transactions as a percentage of approved transactions">
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={channelRates}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
+                      <Bar dataKey="fraud" name="Fraud Rate" fill="#ffb86b" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+      </main>
 
       <AnimatePresence>
-        {aiOpen && <motion.div className="drawer-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setAiOpen(false)}>
-          <motion.aside className="ai-drawer" initial={{x:"100%"}} animate={{x:0}} exit={{x:"100%"}} transition={{type:"spring",damping:28,stiffness:250}} onClick={e=>e.stopPropagation()}>
-            <div className="drawer-head"><div><div className="eyebrow">CONTEXTUAL ASSISTANT</div><h2>AI Insights</h2></div><button onClick={()=>setAiOpen(false)}>×</button></div>
-            <div className="ai-context"><b>{NAV.find(x=>x[0]===view)[1]}</b><span>{fmt(filtered.length)} rows · current filters applied</span></div>
-            <button className="generate" onClick={generateAI} disabled={aiLoading}>{aiLoading ? "Analyzing…" : "✦ Generate Insights"}</button>
-            <div className="ai-result">{aiLoading ? <div className="ai-loading"><div className="loader small"></div>Analyzing dashboard context…</div> : <InsightText text={aiText}/>}</div>
-          </motion.aside>
-        </motion.div>}
+        {aiOpen && (
+          <>
+            <motion.div className="drawer-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setAiOpen(false)} />
+            <motion.aside className="ai-drawer" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}>
+              <div className="drawer-head">
+                <div>
+                  <div className="eyebrow">AI ASSISTANT</div>
+                  <h2>AI Insights</h2>
+                </div>
+                <button className="icon-btn" onClick={() => setAiOpen(false)}>×</button>
+              </div>
+
+              <div className="ai-controls">
+                <label>
+                  <span>AI Model</span>
+                  <select
+                    value={`${selectedModel.provider}|${selectedModel.model}`}
+                    onChange={(e) => {
+                      const found = MODEL_OPTIONS.find(
+                        (x) => `${x.provider}|${x.model}` === e.target.value
+                      );
+                      if (found) setSelectedModel(found);
+                    }}
+                  >
+                    {MODEL_OPTIONS.map((x) => (
+                      <option key={`${x.provider}|${x.model}`} value={`${x.provider}|${x.model}`}>
+                        {x.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button className="generate-btn" onClick={generateInsights} disabled={aiLoading}>
+                  {aiLoading ? "Generating…" : "Generate Insights"}
+                </button>
+                <div className="ai-status">{aiStatus || "Ready"}</div>
+              </div>
+
+              <div className="ai-context">
+                <div className="context-title">CONTEXT</div>
+                <div className="context-grid">
+                  <span>View</span><strong>{aiContext.view}</strong>
+                  <span>Rows</span><strong>{number(aiContext.rowsInScope)}</strong>
+                  <span>Approval</span><strong>{rate(kpi.approvalRate)}</strong>
+                  <span>Decline</span><strong>{rate(kpi.declineRate)}</strong>
+                  <span>Fraud</span><strong>{rate(kpi.fraudRate)}</strong>
+                  <span>Chargeback</span><strong>{rate(kpi.cbRate)}</strong>
+                </div>
+              </div>
+
+              <div className="ai-result">
+                {aiResult ? (
+                  <div className="insight-text">{aiResult}</div>
+                ) : (
+                  <div className="empty-ai">
+                    <div className="empty-spark">✦</div>
+                    <h3>Generate an analytical readout</h3>
+                    <p>The AI will use the current filters, KPIs, trends, decline drivers, fraud and chargeback signals.</p>
+                  </div>
+                )}
+              </div>
+            </motion.aside>
+          </>
+        )}
       </AnimatePresence>
     </div>
   );
 }
 
-function viewDescription(v){
-  return {
-    overview:"A portfolio-level snapshot of authorization health, volume, value and emerging risk.",
-    authorization:"Understand where approvals are strong or weak across transaction characteristics.",
-    declines:"Diagnose the response codes and transaction attributes behind authorization declines.",
-    risk:"Connect fraud and chargeback exposure back to transaction behavior."
-  }[v];
+function Kpi({ label, value, sub }) {
+  return (
+    <div className="kpi-card">
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      <div className="kpi-sub">{sub}</div>
+    </div>
+  );
 }
 
-function KPI({label,value,sub,positive}) {
-  return <motion.div className="kpi" whileHover={{y:-2}}>
-    <div className="kpi-label">{label}</div><div className="kpi-value">{value}</div><div className={`kpi-sub ${positive===true?"up":positive===false?"down":""}`}>{sub}</div>
-  </motion.div>;
-}
-const ChartBox=({title,subtitle,children,wide=false})=><div className={`chart-box ${wide?"wide":""}`}><div className="chart-title">{title}</div>{subtitle&&<div className="chart-sub">{subtitle}</div>}<div className="chart">{children}</div></div>;
-const Tip=({active,payload,label})=>active&&payload?.length?<div className="tooltip"><div>{label}</div><strong>{payload[0].name || payload[0].dataKey}: {fmt(payload[0].value,1)}</strong></div>:null;
-
-function Overview({rows,metrics}) {
-  const trend = aggregateTrend(rows);
-  const channel = aggregate(rows,"channel","approved count",8);
-  const declines = aggregate(rows,"response_description","decline count",6);
-  const risk = [
-    {name:"Fraud",value:metrics.fraudAmt},
-    {name:"Chargeback",value:metrics.cbAmt}
-  ];
-  return <><div className="kpi-grid">
-    <KPI label="Authorization volume" value={fmt(metrics.volume)} sub={`${fmt(metrics.approved)} approved`} positive/>
-    <KPI label="Authorization value" value={money(metrics.value)} sub="Approved + declined value"/>
-    <KPI label="Approval rate" value={pct(metrics.approvalRate)} sub={`${pct(metrics.declineRate)} decline rate`} positive={metrics.approvalRate>=90}/>
-    <KPI label="Fraud rate" value={pct(metrics.fraudRate,2)} sub={money(metrics.fraudAmt)} />
-    <KPI label="Chargeback rate" value={pct(metrics.chargebackRate,2)} sub={money(metrics.cbAmt)} />
-  </div>
-  <div className="grid two">
-    <ChartBox title="Authorization trend" subtitle="Volume by month" wide><ResponsiveContainer><AreaChart data={trend}><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopOpacity=".28"/><stop offset="95%" stopOpacity=".02"/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="month"/><YAxis tickFormatter={v=>`${(v/1e6).toFixed(1)}M`}/><Tooltip content={<Tip/>}/><Area type="monotone" dataKey="volume" stroke="var(--accent)" fill="url(#fill)" strokeWidth={2}/></AreaChart></ResponsiveContainer></ChartBox>
-    <ChartBox title="Volume by channel" subtitle="Approved transaction volume"><ResponsiveContainer><BarChart data={channel} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" hide/><YAxis dataKey="name" type="category" width={85}/><Tooltip content={<Tip/>}/><Bar dataKey="value" fill="var(--accent)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></ChartBox>
-  </div>
-  <div className="grid two">
-    <ChartBox title="Top decline drivers" subtitle="Response codes by declined volume"><ResponsiveContainer><BarChart data={declines}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name" tick={{fontSize:10}} interval={0}/><YAxis tickFormatter={v=>`${(v/1000).toFixed(0)}K`}/><Tooltip content={<Tip/>}/><Bar dataKey="value" fill="var(--ink)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox>
-    <ChartBox title="Risk exposure" subtitle="Fraud and chargeback amounts"><ResponsiveContainer><PieChart><Pie data={risk} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4}>{risk.map((_,i)=><Cell key={i} fill={i===0?"var(--accent)":"var(--warn)"}/>)}</Pie><Tooltip formatter={v=>money(v)}/><Legend/></PieChart></ResponsiveContainer></ChartBox>
-  </div></>;
+function ChartCard({ title, subtitle, children }) {
+  return (
+    <div className="chart-card">
+      <div className="chart-head">
+        <div>
+          <h3>{title}</h3>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+      {children}
+    </div>
+  );
 }
 
-function Authorization({rows,metrics}) {
-  const byChannel = rateBy(rows,"channel");
-  const byEntry = rateBy(rows,"entry mode code");
-  const by3ds = rateBy(rows,"3DS");
-  return <><div className="kpi-grid four"><KPI label="Approved transactions" value={fmt(metrics.approved)} sub={pct(metrics.approvalRate)+" of volume"} positive/><KPI label="Approved value" value={money(sum(rows,"approved amt"))} sub="Successful authorization value"/><KPI label="Declined transactions" value={fmt(metrics.declined)} sub={pct(metrics.declineRate)+" of volume"}/><KPI label="Avg approved ticket" value={money(metrics.approved?sum(rows,"approved amt")/metrics.approved:0)} sub="Approved value / approved txn"/></div>
-  <div className="grid two"><ChartBox title="Approval rate by channel" subtitle="Approval share of transaction volume"><ResponsiveContainer><BarChart data={byChannel}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name"/><YAxis domain={[0,100]} tickFormatter={v=>`${v}%`}/><Tooltip formatter={v=>pct(v)}/><Bar dataKey="rate" fill="var(--accent)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox>
-  <ChartBox title="Approval rate by entry mode" subtitle="Transaction entry behavior"><ResponsiveContainer><BarChart data={byEntry} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" domain={[0,100]} tickFormatter={v=>`${v}%`}/><YAxis type="category" dataKey="name" width={105}/><Tooltip formatter={v=>pct(v)}/><Bar dataKey="rate" fill="var(--ink)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></ChartBox></div>
-  <div className="grid two"><ChartBox title="3DS performance" subtitle="Approval rate by 3DS status"><ResponsiveContainer><BarChart data={by3ds}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name"/><YAxis domain={[0,100]} tickFormatter={v=>`${v}%`}/><Tooltip formatter={v=>pct(v)}/><Bar dataKey="rate" fill="var(--accent)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox>
-  <ChartBox title="Approval value trend" subtitle="Approved transaction value by month"><ResponsiveContainer><LineChart data={aggregateTrend(rows)}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="month"/><YAxis tickFormatter={v=>money(v)}/><Tooltip formatter={v=>money(v)}/><Line type="monotone" dataKey="approvedValue" stroke="var(--accent)" strokeWidth={3} dot={false}/></LineChart></ResponsiveContainer></ChartBox></div></>;
+function SimpleBars({ data }) {
+  const max = Math.max(...data.map((x) => x.value), 1);
+  return (
+    <div className="simple-bars">
+      {data.map((x) => (
+        <div className="simple-bar-row" key={x.name}>
+          <div className="simple-bar-label" title={x.name}>{x.name}</div>
+          <div className="simple-bar-track">
+            <div className="simple-bar-fill" style={{ width: `${(x.value / max) * 100}%` }} />
+          </div>
+          <div className="simple-bar-value">{number(x.value)}</div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function Declines({rows,metrics}) {
-  const codes = aggregate(rows,"response_description","decline count",10);
-  const channels = rateBy(rows,"channel","decline");
-  const entry = rateBy(rows,"entry mode code","decline");
-  return <><div className="kpi-grid four"><KPI label="Declined transactions" value={fmt(metrics.declined)} sub={pct(metrics.declineRate)+" of volume"}/><KPI label="Declined value" value={money(sum(rows,"decline amount"))} sub="Value associated with declines"/><KPI label="Largest decline reason" value={codes[0]?.name?.split(" - ")[0] || "—"} sub={codes[0] ? fmt(codes[0].value)+" declined txns" : "No data"}/><KPI label="Decline reasons" value={fmt(new Set(rows.map(r=>r.response_description)).size)} sub="Distinct response descriptions"/></div>
-  <div className="grid two"><ChartBox title="Decline reason distribution" subtitle="Top response descriptions"><ResponsiveContainer><BarChart data={codes} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number"/><YAxis type="category" dataKey="name" width={180} tick={{fontSize:10}}/><Tooltip content={<Tip/>}/><Bar dataKey="value" fill="var(--ink)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></ChartBox>
-  <ChartBox title="Decline rate by channel" subtitle="Share of transactions declined"><ResponsiveContainer><BarChart data={channels}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name"/><YAxis domain={[0,100]} tickFormatter={v=>`${v}%`}/><Tooltip formatter={v=>pct(v)}/><Bar dataKey="rate" fill="var(--warn)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox></div>
-  <ChartBox title="Decline rate by entry mode" subtitle="Potential friction points"><ResponsiveContainer><BarChart data={entry}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name"/><YAxis domain={[0,100]} tickFormatter={v=>`${v}%`}/><Tooltip formatter={v=>pct(v)}/><Bar dataKey="rate" fill="var(--accent)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox></>;
-}
-
-function Risk({rows,metrics}) {
-  const fraud = aggregate(rows,"fraud reason","fraud count",8).filter(x=>x.name!=="No Fraud");
-  const cb = aggregate(rows,"chargeback reason","chargeback count",8).filter(x=>x.name!=="No Chargeback");
-  const fraudChannel = rateBy(rows,"channel","fraud");
-  return <><div className="kpi-grid four"><KPI label="Fraud transactions" value={fmt(metrics.fraud)} sub={pct(metrics.fraudRate,2)+" of volume"}/><KPI label="Fraud exposure" value={money(metrics.fraudAmt)} sub="Fraud amount"/><KPI label="Chargebacks" value={fmt(metrics.cb)} sub={pct(metrics.chargebackRate,2)+" of volume"}/><KPI label="Chargeback exposure" value={money(metrics.cbAmt)} sub="Total chargeback amount"/></div>
-  <div className="grid two"><ChartBox title="Fraud reasons" subtitle="Fraud transaction count"><ResponsiveContainer><BarChart data={fraud} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number"/><YAxis type="category" dataKey="name" width={140}/><Tooltip content={<Tip/>}/><Bar dataKey="value" fill="var(--accent)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></ChartBox>
-  <ChartBox title="Chargeback reasons" subtitle="Chargeback transaction count"><ResponsiveContainer><BarChart data={cb} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number"/><YAxis type="category" dataKey="name" width={140}/><Tooltip content={<Tip/>}/><Bar dataKey="value" fill="var(--warn)" radius={[0,5,5,0]}/></BarChart></ResponsiveContainer></ChartBox></div>
-  <ChartBox title="Fraud rate by channel" subtitle="Fraud transactions as a share of authorization volume"><ResponsiveContainer><BarChart data={fraudChannel}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="name"/><YAxis tickFormatter={v=>`${v.toFixed(2)}%`}/><Tooltip formatter={v=>pct(v,2)}/><Bar dataKey="rate" fill="var(--accent)" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer></ChartBox></>;
-}
-
-function aggregateTrend(rows) {
-  const m = new Map();
-  rows.forEach(r=>{
-    const k=String(r.year_month||"Unknown");
-    const x=m.get(k)||{month:k,volume:0,approvedValue:0};
-    x.volume += (+r["approved count"]||0)+(+r["decline count"]||0);
-    x.approvedValue += +r["approved amt"]||0;
-    m.set(k,x);
-  });
-  return [...m.values()].sort((a,b)=>a.month.localeCompare(b.month));
-}
-function rateBy(rows,key,mode="approval") {
-  const m=new Map();
-  rows.forEach(r=>{
-    const k=r[key]||"Unknown", x=m.get(k)||{vol:0,approved:0,declined:0,fraud:0};
-    x.approved += +r["approved count"]||0; x.declined += +r["decline count"]||0; x.fraud += +r["fraud count"]||0;
-    x.vol += (+r["approved count"]||0)+(+r["decline count"]||0); m.set(k,x);
-  });
-  return [...m.entries()].map(([name,x])=>({name,rate:x.vol?(mode==="decline"?x.declined:x.vol?mode==="fraud"?x.fraud:x.approved:x.vol)/x.vol*100:0})).sort((a,b)=>b.rate-a.rate);
-}
-function buildAIContext(view, filters, rows) {
-  const m=kpis(rows);
-  return {view, filters, rowsInScope:rows.length, kpis:m,
-    trends:aggregateTrend(rows), declineReasons:aggregate(rows,"response_description","decline count",10),
-    fraudReasons:aggregate(rows,"fraud reason","fraud count",10),
-    chargebackReasons:aggregate(rows,"chargeback reason","chargeback count",10)};
-}
-function localInsights(view, rows, m) {
-  const decline=aggregate(rows,"response_description","decline count",3)[0];
-  const fraud=aggregate(rows,"fraud reason","fraud count",5).find(x=>x.name!=="No Fraud");
-  const cb=aggregate(rows,"chargeback reason","chargeback count",5).find(x=>x.name!=="No Chargeback");
-  const lines=[];
-  if(view==="overview"||view==="authorization") lines.push(`Approval rate is ${pct(m.approvalRate)} across ${fmt(m.volume)} transactions in the current scope.`);
-  if(decline) lines.push(`${decline.name} is the largest decline driver, with ${fmt(decline.value)} declined transactions in scope.`);
-  if(view==="risk"||view==="overview") {
-    if(fraud) lines.push(`${fraud.name} is the leading recorded fraud reason in the current data.`);
-    if(cb) lines.push(`${cb.name} is the leading recorded chargeback reason in the current data.`);
-  }
-  if(!lines.length) lines.push("There is not enough activity in the current filter selection to generate a meaningful insight.");
-  return lines.map(x=>`• ${x}`).join("\n\n");
-}
-function InsightText({text}) {
-  if(!text) return <div className="empty-ai">Select filters and generate insights to analyze the current dashboard context.</div>;
-  return <div className="insight-text">{text.split("\n").map((x,i)=><p key={i}>{x}</p>)}</div>;
+function RiskMetric({ label, value, rate }) {
+  return (
+    <div className="risk-metric">
+      <div className="risk-label">{label}</div>
+      <div className="risk-value">{value}</div>
+      <div className="risk-rate">{rate}</div>
+    </div>
+  );
 }
 
 createRoot(document.getElementById("root")).render(<App />);

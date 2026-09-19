@@ -189,7 +189,7 @@ function App() {
         setLoading(false);
       },
       error: (err) => {
-        setLoadError(err?.message || "Unable to load Google Sheet.");
+        setLoadError(err?.message || "Unable to load Sheet.");
         setLoading(false);
       },
     });
@@ -325,7 +325,7 @@ function App() {
         <div>
           <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
           <h1>Loading authorization data</h1>
-          <p>Connecting to the live Google Sheets data source…</p>
+          <p>Connecting to the live data source…</p>
         </div>
       </div>
     );
@@ -338,7 +338,7 @@ function App() {
           <div className="eyebrow">DATA CONNECTION ERROR</div>
           <h1>Unable to load the dashboard data</h1>
           <p>{loadError}</p>
-          <p className="muted">Check that the Google Sheet is shared for viewing and try refreshing.</p>
+          <p className="muted">Check that the Data Sheet is shared for viewing and try refreshing.</p>
         </div>
       </div>
     );
@@ -371,7 +371,7 @@ function App() {
 
         <div className="sidebar-foot">
           <span className="live-dot" />
-          <span>Live Google Sheets source</span>
+          <span>Live Data Sheets source</span>
         </div>
       </aside>
 

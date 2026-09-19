@@ -448,17 +448,41 @@ function App() {
             {section === "overview" && (
               <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                 <div className="chart-grid two">
-                  <ChartCard title="Authorization trend" subtitle="Approved and declined transaction volume">
+                  <ChartCard title="Authorization trend" subtitle="Approval rate by amount and count">
                     <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart data={trend}>
+                      <LineChart
+                        data={trend.map((x) => ({
+                          ...x,
+                          approvalRateByAmount: pct(x.approvedAmt, x.approvedAmt + x.declineAmt),
+                          approvalRateByCount: x.approvalRate,
+                        }))}
+                      >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} tickFormatter={number} />
-                        <Tooltip formatter={(v) => number(v)} />
+                        <YAxis
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(v) => `${v}%`}
+                        />
+                        <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
                         <Legend />
-                        <Area type="monotone" dataKey="approved" name="Approved" fill="rgba(64,180,255,.18)" stroke="#46b5ff" strokeWidth={2} />
-                        <Area type="monotone" dataKey="declined" name="Declined" fill="rgba(255,100,130,.10)" stroke="#ff6b87" strokeWidth={2} />
-                      </AreaChart>
+                        <Line
+                          type="monotone"
+                          dataKey="approvalRateByAmount"
+                          name="Approval Rate by Amount"
+                          stroke="#46b5ff"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="approvalRateByCount"
+                          name="Approval Rate by Count"
+                          stroke="#66d4a6"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
                     </ResponsiveContainer>
                   </ChartCard>
                   <ChartCard title="Approved volume by channel" subtitle="Transaction mix across channels">

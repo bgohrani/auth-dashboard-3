@@ -49,14 +49,14 @@ const MODEL_OPTIONS = [
     label: "Gemini 3.5 Flash-Lite",
   },
   {
-    provider: "groq",
-    model: "openai/gpt-oss-120b",
-    label: "GPT-OSS 120B · Groq",
+    provider: "cloudflare",
+    model: "@cf/nvidia/nemotron-3-120b-a12b",
+    label: "Nemotron 3 120B · Cloudflare",
   },
   {
-    provider: "openrouter",
-    model: "nvidia/nemotron-3-ultra-550b-a55b:free",
-    label: "Nemotron 3 Ultra · OpenRouter Free",
+    provider: "mistral",
+    model: "mistral-small-latest",
+    label: "Mistral Small · Free",
   },
 ];
 

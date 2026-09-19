@@ -1470,7 +1470,7 @@ analysisMode: mode,
 
               <div className="ai-result">
                 {aiResult ? (
-                  {renderAIResult(aiResult)}
+                  <>{renderAIResult(aiResult)}</>
                 ) : (
                   <div className="empty-ai">
                     <div className="empty-spark">✦</div>

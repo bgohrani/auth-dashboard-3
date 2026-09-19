@@ -30,7 +30,7 @@ button { cursor: pointer; }
 .side-label,.eyebrow { color:#182638; font-size:10px; letter-spacing:.16em; font-weight:700; }
 .filters { margin-top:10px; display:grid; gap:9px; }
 .filter { display:grid; gap:5px; }
-.filter span { color:#8da0b5; font-size:11px; }
+.filter span { color:#182638; font-size:11px; }
 .filter select, .ai-controls select {
   width:100%; border:1px solid rgba(255,255,255,.08); background:#ffffff; color:#26374a;
   border-radius:8px; padding:8px 9px; outline:none;

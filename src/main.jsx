@@ -245,51 +245,45 @@ function categoryMetrics(rows, key) {
   }));
 }
 
-
 function ticketDeclineMix(rows) {
-  const map = new Map();
+  const byTicket = new Map();
 
   rows.forEach((r) => {
-    const ticket =
-      r["ticket size bands"] === null ||
-      r["ticket size bands"] === undefined ||
-      String(r["ticket size bands"]).trim() === ""
-        ? "NA"
-        : String(r["ticket size bands"]).trim();
+    const ticket = String(r["ticket size bands"] ?? "").trim() || "NA";
+    const reason = String(r.response_description ?? "").trim() || "NA";
+    const count = n(r["decline count"]);
 
-    const reason =
-      r.response_description === null ||
-      r.response_description === undefined ||
-      String(r.response_description).trim() === ""
-        ? "NA"
-        : String(r.response_description).trim();
+    if (!byTicket.has(ticket)) {
+      byTicket.set(ticket, new Map());
+    }
 
-    const key = `${ticket}|||${reason}`;
+    const reasonMap = byTicket.get(ticket);
+    reasonMap.set(reason, (reasonMap.get(reason) || 0) + count);
+  });
 
-    const current = map.get(key) || {
+  return [...byTicket.entries()].map(([ticket, reasonMap]) => {
+    const sorted = [...reasonMap.entries()]
+      .sort((a, b) => b[1] - a[1]);
+
+    const top4 = sorted.slice(0, 4);
+    const others = sorted.slice(4).reduce((sum, [, value]) => sum + value, 0);
+
+    const total = sorted.reduce((sum, [, value]) => sum + value, 0);
+
+    const row = {
       ticket,
-      reason,
-      count: 0,
     };
 
-    current.count += n(r["decline count"]);
-    map.set(key, current);
+    top4.forEach(([reason, value], index) => {
+      row[`reason_${index}`] = total ? (value / total) * 100 : 0;
+      row[`reason_${index}_name`] = reason;
+    });
+
+    row.reason_others = total ? (others / total) * 100 : 0;
+    row.reason_others_name = "Others";
+
+    return row;
   });
-
-  const ticketTotals = new Map();
-
-  [...map.values()].forEach((x) => {
-    ticketTotals.set(
-      x.ticket,
-      (ticketTotals.get(x.ticket) || 0) + x.count
-    );
-  });
-
-  return [...map.values()].map((x) => ({
-    ticket: x.ticket,
-    reason: x.reason,
-    share: pct(x.count, ticketTotals.get(x.ticket)),
-  }));
 }
 
 function App() {
@@ -925,68 +919,40 @@ const ticketDeclineData = useMemo(
                 <div style={{ marginTop: "16px" }}>
                   <ChartCard
                     title="Decline Reason Mix by Ticket Size"
-                    subtitle="Share of decline reasons within each ticket size band"
+                    subtitle="Top 4 decline reasons within each ticket size band"
                   >
                     <ResponsiveContainer width="100%" height={360}>
-                      <BarChart data={
-                        [...new Set(ticketDeclineData.map((x) => x.ticket))].map(
-                          (ticket) => {
-                            const row = { ticket };
-            
-                            ticketDeclineData
-                              .filter((x) => x.ticket === ticket)
-                              .forEach((x) => {
-                                row[x.reason] = x.share;
-                              });
-            
-                            return row;
-                          }
-                        )
-                      }>
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                        />
-            
+                      <BarChart
+                        data={ticketDeclineData}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  
                         <XAxis
                           dataKey="ticket"
-                          tick={{ fontSize: 10 }}
+                          tick={{ fontSize: 11 }}
                         />
-            
+                  
                         <YAxis
                           domain={[0, 100]}
+                          tickFormatter={(value) => `${value}%`}
                           tick={{ fontSize: 11 }}
-                          tickFormatter={(v) => `${v}%`}
                         />
-            
+                  
                         <Tooltip
-                          formatter={(v) => `${Number(v).toFixed(1)}%`}
+                          formatter={(value, name, props) => {
+                            const reasonName =
+                              props?.payload?.[`${name}_name`] || name;
+                  
+                            return [`${Number(value).toFixed(1)}%`, reasonName];
+                          }}
                         />
-            
-                        <Legend />
-            
-                        {[
-                          ...new Set(ticketDeclineData.map((x) => x.reason)),
-                        ].map((reason, index) => (
-                          <Bar
-                            key={reason}
-                            dataKey={reason}
-                            name={reason}
-                            stackId="declines"
-                            fill={
-                              [
-                                "#46b5ff",
-                                "#66d4a6",
-                                "#ffb86b",
-                                "#ff6b87",
-                                "#8b7cff",
-                                "#20b2aa",
-                                "#d88928",
-                                "#7c8cff",
-                              ][index % 8]
-                            }
-                          />
-                        ))}
+                  
+                        <Bar dataKey="reason_0" stackId="declines" fill="#46b5ff" />
+                        <Bar dataKey="reason_1" stackId="declines" fill="#66d4a6" />
+                        <Bar dataKey="reason_2" stackId="declines" fill="#ffb86b" />
+                        <Bar dataKey="reason_3" stackId="declines" fill="#ff6b87" />
+                        <Bar dataKey="reason_others" stackId="declines" fill="#8b7cf6" />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
@@ -1281,7 +1247,13 @@ function PerformancePie({ title, subtitle, data }) {
             }}
           />
 
-          <Legend />
+          <Legend
+            wrapperStyle={{
+              fontSize: "11px",
+              lineHeight: "16px",
+            }}
+            iconSize={10}
+          />
         </PieChart>
       </ResponsiveContainer>
     </ChartCard>

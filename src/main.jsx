@@ -228,8 +228,8 @@ function categoryMetrics(rows, key) {
   rows.forEach((r) => {
     const value = String(r[key] ?? "").trim();
 
-    // Exclude blank / NA values
-    if (!value || value.toUpperCase() === "NA") return;
+    // Exclude blank / null values completely
+    if (!value) return;
 
     const approved = n(r["approved count"]);
     const declined = n(r["decline count"]);
@@ -239,7 +239,7 @@ function categoryMetrics(rows, key) {
     if (!map.has(value)) {
       map.set(value, {
         name: value,
-        value: 0,
+        totalCount: 0,
         approved: 0,
         approvedAmt: 0,
         totalAmt: 0,
@@ -248,16 +248,22 @@ function categoryMetrics(rows, key) {
 
     const x = map.get(value);
 
-    x.value += approved + declined;
+    x.totalCount += approved + declined;
     x.approved += approved;
     x.approvedAmt += approvedAmt;
     x.totalAmt += approvedAmt + declineAmt;
   });
 
+  const totalCount = [...map.values()].reduce(
+    (sum, x) => sum + x.totalCount,
+    0
+  );
+
   return [...map.values()].map((x) => ({
     ...x,
-    approvalRateCount: pct(x.approved, x.value),
-    approvalRateAmount: pct(x.approvedAmt, x.totalAmt),
+    share: pct(x.totalCount, totalCount),
+    approvalRateByCount: pct(x.approved, x.totalCount),
+    approvalRateByAmount: pct(x.approvedAmt, x.totalAmt),
   }));
 }
 

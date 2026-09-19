@@ -1354,7 +1354,7 @@ analysisMode: mode,
                     setAiMode("current_section");
                     generateInsights("current_section");
                   }}
-                  disabled={aiLoading}
+                  
                 >
                   {aiLoading && aiMode === "current_section"
                     ? "Stop Analysis"
@@ -1373,7 +1373,7 @@ analysisMode: mode,
                     generateInsights("whole_dashboard");
                   }}
                   
-                  disabled={aiLoading}
+                  
                 >
                   {aiLoading && aiMode === "whole_dashboard"
                     ? "Stop Analysis"

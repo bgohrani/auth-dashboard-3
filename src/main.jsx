@@ -49,6 +49,11 @@ const MODEL_OPTIONS = [
     label: "Gemini 3.5 Flash-Lite",
   },
   {
+  provider: "huggingface",
+  model: "meta-llama/Llama-3.3-70B-Instruct",
+  label: "Llama 3.3 70B · Hugging Face",
+  },
+  {
     provider: "cloudflare",
     model: "@cf/nvidia/nemotron-3-120b-a12b",
     label: "Nemotron 3 120B · Cloudflare",

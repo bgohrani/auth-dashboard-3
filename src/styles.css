@@ -242,3 +242,40 @@ button { cursor: pointer; }
 .prepaid-dot {
   background: #ffb86b;
 }
+
+
+
+.ai-analysis-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.ai-analysis-buttons .generate-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+
+.ai-analysis-buttons .generate-btn:first-child {
+  background: #1677d2;
+  color: #ffffff;
+}
+
+.ai-analysis-buttons .generate-btn:last-child {
+  background: #ffffff;
+  color: #1677d2;
+  border: 1px solid #b9d4ee;
+}
+
+.ai-analysis-buttons .generate-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.ai-analysis-buttons .generate-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

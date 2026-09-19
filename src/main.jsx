@@ -460,9 +460,16 @@ function App() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                         <YAxis
-                          domain={[0, 100]}
+                          domain={([dataMin, dataMax]) => {
+                            const range = dataMax - dataMin;
+                            const padding = Math.max(range * 0.25, 0.5);
+                            return [
+                              Math.max(0, dataMin - padding),
+                              Math.min(100, dataMax + padding),
+                            ];
+                          }}
                           tick={{ fontSize: 11 }}
-                          tickFormatter={(v) => `${v}%`}
+                          tickFormatter={(v) => `${v.toFixed(1)}%`}
                         />
                         <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
                         <Legend />

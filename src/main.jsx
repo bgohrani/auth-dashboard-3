@@ -43,7 +43,7 @@ const FILTER_GROUPS = [
 const FILTER_FIELDS = FILTER_GROUPS.flatMap((group) => group.fields);
 
 const MODEL_OPTIONS = [
-  { provider: "gemini", model: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite" },
+  { provider: "gemini", model: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash-Lite" },
   { provider: "groq", model: "openai/gpt-oss-20b", label: "GPT-OSS 20B · Groq" },
   { provider: "openrouter", model: "openrouter/free", label: "OpenRouter Free" },
 ];

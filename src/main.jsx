@@ -171,32 +171,54 @@ function acquirerMonthly(rows) {
   const map = new Map();
 
   rows.forEach((r) => {
-    const month = r.year_month || "Unknown";
-    const acquirer = r.acquirer_name || "Unknown";
+    const acquirer = String(r.acquirer_name ?? "").trim() || "NA";
+    const month = String(r.year_month ?? "").trim() || "NA";
+
     const key = `${acquirer}|||${month}`;
 
-    const x = map.get(key) || {
-      acquirer,
-      month,
-      approved: 0,
-      declined: 0,
-    };
+    if (!map.has(key)) {
+      map.set(key, {
+        acquirer,
+        month,
+        approved: 0,
+        declined: 0,
+      });
+    }
+
+    const x = map.get(key);
 
     x.approved += n(r["approved count"]);
     x.declined += n(r["decline count"]);
-
-    map.set(key, x);
   });
 
-  return [...map.values()]
-    .sort((a, b) => {
-      const monthSort = String(a.month).localeCompare(String(b.month));
-      return monthSort || String(a.acquirer).localeCompare(String(b.acquirer));
-    })
-    .map((x) => ({
-      ...x,
-      approvalRate: pct(x.approved, x.approved + x.declined),
-    }));
+  const acquirers = [
+    ...new Set([...map.values()].map((x) => x.acquirer)),
+  ].sort();
+
+  const months = [
+    ...new Set([...map.values()].map((x) => x.month)),
+  ].sort();
+
+  const data = months.map((month) => {
+    const row = {
+      month,
+    };
+
+    acquirers.forEach((acquirer) => {
+      const x = map.get(`${acquirer}|||${month}`);
+
+      row[acquirer] = x
+        ? pct(x.approved, x.approved + x.declined)
+        : null;
+    });
+
+    return row;
+  });
+
+  return {
+    data,
+    acquirers,
+  };
 }
 
 
@@ -818,61 +840,69 @@ const ticketDeclineData = useMemo(
                   title="Approval Rate by Acquirer"
                   subtitle="Monthly approval rate by transaction count"
                 >
-                  <ResponsiveContainer width="100%" height={340}>
-                    <LineChart data={acquirerTrend}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            
+                  <ResponsiveContainer width="100%" height={420}>
+                    <LineChart
+                      data={acquirerTrend.data}
+                      margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                      />
+                
                       <XAxis
                         dataKey="month"
                         tick={{ fontSize: 11 }}
                       />
-            
+                
                       <YAxis
                         domain={([dataMin, dataMax]) => {
                           const range = dataMax - dataMin;
-                          const padding = Math.max(range * 0.2, 0.5);
-            
+                          const padding = Math.max(range * 0.25, 0.5);
+                
                           return [
                             Math.max(0, dataMin - padding),
                             Math.min(100, dataMax + padding),
                           ];
                         }}
+                        tickFormatter={(value) => `${value.toFixed(1)}%`}
                         tick={{ fontSize: 11 }}
-                        tickFormatter={(v) => `${v.toFixed(1)}%`}
                       />
-            
+                
                       <Tooltip
-                        formatter={(v) => `${Number(v).toFixed(2)}%`}
+                        formatter={(value, name) => [
+                          `${Number(value).toFixed(2)}%`,
+                          name,
+                        ]}
                         labelFormatter={(label) => `Month: ${label}`}
                       />
-            
-                      <Legend />
-            
-                      {[...new Set(acquirerTrend.map((x) => x.acquirer))].map(
-                        (acquirer, index) => (
-                          <Line
-                            key={acquirer}
-                            type="monotone"
-                            data={acquirerTrend.filter(
-                              (x) => x.acquirer === acquirer
-                            )}
-                            dataKey="approvalRate"
-                            name={acquirer}
-                            stroke={
-                              [
-                                "#46b5ff",
-                                "#66d4a6",
-                                "#ffb86b",
-                                "#ff6b87",
-                                "#8b7cff",
-                                "#20b2aa",
-                              ][index % 6]
-                            }
-                            strokeWidth={2}
-                            dot={false}
-                          />
-                        )
-                      )}
+                
+                      {acquirerTrend.acquirers.map((acquirer, index) => (
+                        <Line
+                          key={acquirer}
+                          type="monotone"
+                          dataKey={acquirer}
+                          name={acquirer}
+                          stroke={[
+                            "#46b5ff",
+                            "#66d4a6",
+                            "#ffb86b",
+                            "#ff6b87",
+                            "#8b7cf6",
+                            "#20b2aa",
+                            "#45aaf2",
+                            "#a55eea",
+                            "#26de81",
+                            "#fd9644",
+                            "#fc5c65",
+                            "#2bcbba",
+                          ][index % 12]}
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          connectNulls
+                        />
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 </ChartCard>

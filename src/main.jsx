@@ -65,6 +65,7 @@ const number = (v) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 
 const rate = (v) => `${v.toFixed(1)}%`;
+const bps = (v) => `${Math.round(v)} BPS`;
 
 const normalizeRow = (r) => {
   const row = {};
@@ -189,7 +190,7 @@ function App() {
         setLoading(false);
       },
       error: (err) => {
-        setLoadError(err?.message || "Unable to load Sheet.");
+        setLoadError(err?.message || "Unable to load Google Sheet.");
         setLoading(false);
       },
     });
@@ -217,7 +218,20 @@ function App() {
   );
 
   const kpi = useMemo(() => aggregate(filteredRows), [filteredRows]);
+  const overallKpi = useMemo(() => aggregate(rows), [rows]);
   const trend = useMemo(() => monthly(filteredRows), [filteredRows]);
+
+  const overviewMetrics = useMemo(() => {
+    const totalAmount = kpi.approvedAmt + kpi.declinedAmt;
+    return {
+      totalAmount,
+      approvalRateByAmount: pct(kpi.approvedAmt, totalAmount),
+      approvalRateByCount: kpi.approvalRate,
+      fraudRateBps: kpi.fraudRate * 100,
+      chargebackRateBps: kpi.cbRate * 100,
+      overallApprovalRateByCount: overallKpi.approvalRate,
+    };
+  }, [kpi, overallKpi]);
 
   const channelMix = useMemo(
     () =>
@@ -325,7 +339,7 @@ function App() {
         <div>
           <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
           <h1>Loading authorization data</h1>
-          <p>Connecting to the live data source…</p>
+          <p>Connecting to the live Google Sheets data source…</p>
         </div>
       </div>
     );
@@ -338,7 +352,7 @@ function App() {
           <div className="eyebrow">DATA CONNECTION ERROR</div>
           <h1>Unable to load the dashboard data</h1>
           <p>{loadError}</p>
-          <p className="muted">Check that the Data Sheet is shared for viewing and try refreshing.</p>
+          <p className="muted">Check that the Google Sheet is shared for viewing and try refreshing.</p>
         </div>
       </div>
     );
@@ -371,7 +385,7 @@ function App() {
 
         <div className="sidebar-foot">
           <span className="live-dot" />
-          <span>Live Data Sheets source</span>
+          <span>Live Google Sheets source</span>
         </div>
       </aside>
 
@@ -409,14 +423,26 @@ function App() {
             <span>Filtered authorization activity</span>
           </div>
 
-          <div className="kpi-grid">
-            <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
-            <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
-            <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
-            <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
-            <Kpi label="Fraud Rate" value={rate(kpi.fraudRate)} sub={`${number(kpi.fraud)} fraud transactions`} />
-            <Kpi label="Chargeback Rate" value={rate(kpi.cbRate)} sub={`${number(kpi.cb)} chargebacks`} />
-          </div>
+          {section === "overview" ? (
+            <div className="kpi-grid">
+              <Kpi label="Total Amount" value={money(overviewMetrics.totalAmount)} sub="approved + declined amount" />
+              <Kpi label="Total Count" value={number(kpi.total)} sub="approved + declined transactions" />
+              <Kpi label="Approval Rate by Amount" value={rate(overviewMetrics.approvalRateByAmount)} sub="approved amount / total amount" />
+              <Kpi label="Approval Rate by Count" value={rate(overviewMetrics.approvalRateByCount)} sub="approved count / total count" />
+              <Kpi label="Fraud Rate (BPS)" value={bps(overviewMetrics.fraudRateBps)} sub={`${number(kpi.fraud)} fraud transactions`} />
+              <Kpi label="Chargeback Rate (BPS)" value={bps(overviewMetrics.chargebackRateBps)} sub={`${number(kpi.cb)} chargebacks`} />
+              <Kpi label="Overall Approval Rate by Count (Static)" value={rate(overviewMetrics.overallApprovalRateByCount)} sub="overall dataset · unaffected by filters" />
+            </div>
+          ) : (
+            <div className="kpi-grid">
+              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+              <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
+              <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
+              <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
+              <Kpi label="Fraud Rate" value={rate(kpi.fraudRate)} sub={`${number(kpi.fraud)} fraud transactions`} />
+              <Kpi label="Chargeback Rate" value={rate(kpi.cbRate)} sub={`${number(kpi.cb)} chargebacks`} />
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             {section === "overview" && (

@@ -75,11 +75,12 @@ const n = (v) => {
 };
 
 const pct = (a, b) => (b ? (a / b) * 100 : 0);
+
 const money = (v) =>
-  new Intl.NumberFormat("en-US", {
+  `$${new Intl.NumberFormat("en-US", {
     notation: Math.abs(v) >= 1e9 ? "compact" : "standard",
     maximumFractionDigits: 1,
-  }).format(v);
+  }).format(v)}`;
 
 const number = (v) =>
   new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);

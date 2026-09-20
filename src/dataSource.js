@@ -7,5 +7,7 @@ export const GOOGLE_SHEET_CSV_URL =
 export const AUTHENTICATION_DATA_URL =
   "https://4oupentp6qrm9rag.public.blob.vercel-storage.com/authentication_data.csv";
 
+export const check_var = "1234";
+
 export const AI_API_URL =
   "https://payments-ai-insights.bgohrani.workers.dev/";

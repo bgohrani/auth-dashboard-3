@@ -1006,6 +1006,7 @@ function renderAIResult(text) {
     "EXECUTIVE STORYLINE",
     "KEY OBSERVATIONS",
     "AREAS REQUIRING ATTENTION",
+    "DECLINE REDUCTION & MITIGATION",
     "POSSIBLE DRIVERS",
     "RECOMMENDED ANALYTICAL FOLLOW-UPS",
     "STORYLINE",
@@ -1454,80 +1455,160 @@ const chargebackLifecycleData = useMemo(
   () => chargebackLifecycleMix(filteredRows),
   [filteredRows]
 );  
-  const aiContext = useMemo(() => ({
-  analysisMode: aiMode,
+  const aiContext = useMemo(() => {
+    const authorizationFilters = Object.fromEntries(
+      Object.entries(filters).filter(([, value]) => Array.isArray(value) && value.length > 0)
+    );
+    const authenticationFilters = Object.fromEntries(
+      Object.entries(authFilters).filter(([, value]) => Array.isArray(value) && value.length > 0)
+    );
 
-  view: SECTIONS.find(([id]) => id === section)?.[1] || section,
+    const buildMix = (definitions) => Object.fromEntries(
+      Object.entries(definitions).map(([name, dimensionRows]) => {
+        const totalCount = dimensionRows.reduce((sum, r) => sum + n(r["approved count"]) + n(r["decline count"]), 0);
+        const approvedCount = dimensionRows.reduce((sum, r) => sum + n(r["approved count"]), 0);
+        const approvedAmount = dimensionRows.reduce((sum, r) => sum + n(r["approved amt"]), 0);
+        const totalAmount = dimensionRows.reduce((sum, r) => sum + n(r["approved amt"]) + n(r["decline amount"]), 0);
+        return [name, {
+          transactionCount: totalCount,
+          share: pct(totalCount, kpi.total),
+          approvalRateByCount: pct(approvedCount, totalCount),
+          approvalRateByAmount: pct(approvedAmount, totalAmount),
+        }];
+      })
+    );
 
-  filters: Object.fromEntries(
-    Object.entries(filters).filter(
-      ([, value]) => Array.isArray(value) && value.length > 0
-    )
-  ),
+    const cardNetworkMix = buildMix({
+      Visa: filteredRows.filter((r) => String(r.bin || "").startsWith("4")),
+      Mastercard: filteredRows.filter((r) => String(r.bin || "").startsWith("5")),
+    });
+    const productMix = buildMix({
+      Credit: filteredRows.filter((r) => String(r["prod type"]).toLowerCase().includes("credit")),
+      Debit: filteredRows.filter((r) => String(r["prod type"]).toLowerCase().includes("debit")),
+      Prepaid: filteredRows.filter((r) => String(r["prod type"]).toLowerCase().includes("prepaid")),
+    });
 
-  rowsInScope: filteredRows.length,
+    const sectionContexts = {
+      overview: {
+        kpis: {
+          totalAmount: overviewMetrics.totalAmount,
+          totalTransactions: kpi.total,
+          approvalRateByAmount: overviewMetrics.approvalRateByAmount,
+          approvalRateByCount: overviewMetrics.approvalRateByCount,
+          fraudRateBps: overviewMetrics.fraudRateBps,
+          chargebackRateBps: overviewMetrics.chargebackRateBps,
+        },
+        visualizations: ["Authorization trend", "Approved volume by channel", "Top decline drivers", "Card network mix", "Product type mix"],
+        monthlyAuthorizationTrend: trend,
+        channelPerformance: channelMix,
+        cardNetworkMix,
+        productMix,
+        topDeclineDrivers: declineReasons,
+        fraudDrivers: fraudReasons,
+        chargebackDrivers: cbReasons,
+      },
+      performance: {
+        kpis: {
+          authorizationVolume: kpi.total,
+          approvalRate: kpi.approvalRate,
+          approvedValue: kpi.approvedAmt,
+          declineRate: kpi.declineRate,
+          threeDSApprovalRateByCount: threeDSApprovalRateByCount,
+          tokenizedApprovalRateByCount: tokenizedApprovalRateByCount,
+        },
+        visualizations: ["Approval rate by acquirer", "3DS performance", "Tokenization performance", "Entry mode performance", "Wallet performance", "Top 10 merchants by transaction amount with approval rate", "Top 10 MCCs by transaction amount with approval rate"],
+        acquirerApprovalTrend: acquirerTrend,
+        authenticationDimensions: { threeDS: performance3DS, tokenization: performanceTokenization, entryMode: performanceEntryMode, wallet: performanceWallet },
+        topMerchantsByAmount: topMerchants,
+        topMCCsByAmount: topMCCs,
+      },
+      decline: {
+        kpis: {
+          authorizationVolume: kpi.total,
+          approvalRate: kpi.approvalRate,
+          approvedValue: kpi.approvedAmt,
+          declinedTransactions: kpi.declined,
+          declinedValue: kpi.declinedAmt,
+          declineRate: kpi.declineRate,
+        },
+        visualizations: ["Decline reason distribution", "Monthly decline trend", "Decline reason mix by ticket size", "Decline reason mix by month", "Top merchants by decline amount", "Top MCCs by decline amount", "Decline reason mix by merchant", "Decline reason mix by MCC"],
+        declineReasonDistribution: declineReasons,
+        monthlyDeclineTrend: declineMonthlyData,
+        declineReasonMixByTicketSize: ticketDeclineData,
+        declineReasonMixByMonth: declineMonthMixData,
+        topMerchantsByDeclineAmount: topDeclineMerchants,
+        topMCCsByDeclineAmount: topDeclineMCCs,
+        declineReasonMixByMerchant: declineMerchantMixData,
+        declineReasonMixByMCC: declineMCCMixData,
+      },
+      risk: {
+        fraud: { transactions: kpi.fraud, rate: kpi.fraudRate, amount: kpi.fraudAmt, topReasons: fraudReasons, monthlyTrend: fraudMonthlyData },
+        chargebacks: { transactions: kpi.cb, rate: kpi.cbRate, amount: kpi.cbAmt, topReasons: cbReasons, monthlyTrend: chargebackMonthlyData, lifecycle: chargebackLifecycleData },
+        visualizations: ["Fraud monthly trend", "Chargeback monthly trend", "Chargeback lifecycle", "Top fraud drivers", "Top chargeback drivers"],
+      },
+      authentication: {
+        filters: authenticationFilters,
+        rowsInScope: authenticationFilteredRows.length,
+        kpis: {
+          totalAuthenticationTransactions: authenticationKpi.total,
+          successCount: authenticationKpi.success,
+          successRate: authenticationKpi.successRate,
+          challengeSuccessRate: authenticationKpi.challengeSuccessRate,
+          frictionlessSuccessRate: authenticationKpi.frictionlessSuccessRate,
+        },
+        visualizations: ["MoM authenticated volumes with success rate", "Challenge vs Frictionless", "Top 5 authentication failure reasons", "Top 5 challenge mandates", "Top 10 merchants with authentication count and success rate", "Top 10 MCCs with authentication count and success rate"],
+        monthlyTrend: authenticationTrend,
+        challengeVsFrictionless: authenticationModeMix,
+        failureReasons: authenticationFailures,
+        challengeMandates: authenticationMandates,
+        topMerchants: authenticationMerchants,
+        topMCCs: authenticationMCCs,
+      },
+    };
+    const currentSectionContext = sectionContexts[section] || sectionContexts.overview;
+    return {
+      analysisMode: aiMode,
+      view: SECTIONS.find(([id]) => id === section)?.[1] || section,
+      currentSection: section,
+      currentSectionContext,
+      dashboardSummary: {
+        overview: sectionContexts.overview,
+        authorizationPerformance: sectionContexts.performance,
+        declineAnalysis: sectionContexts.decline,
+        fraudAndChargebacks: sectionContexts.risk,
+        authentication: sectionContexts.authentication,
+      },
+      filters: { authorization: authorizationFilters, authentication: authenticationFilters },
+      scope: { authorizationRows: filteredRows.length, authenticationRows: authenticationFilteredRows.length },
+      metricDefinitions: {
+        approvalRateByCount: "Approved authorization transactions / total authorization transactions",
+        approvalRateByAmount: "Approved authorization amount / total authorization amount",
+        fraudRate: "Fraud transactions / approved authorization transactions",
+        chargebackRate: "Chargeback transactions / approved authorization transactions",
+        authenticationSuccessRate: "Authenticated authentication transactions / total authentication transactions",
+      },
+      analysisGuidance: {
+        useOnlyProvidedMetrics: true,
+        prioritizeVisibleVisualizations: true,
+        compareAmountAndCountRates: true,
+        identifyConcentration: true,
+        identifyTrendChanges: true,
+        identifyMixShifts: true,
+        distinguishVolumeFromRate: true,
+        avoidUnsupportedCausality: true,
+      },
+    };
+  }, [
+    aiMode, section, filters, authFilters, filteredRows, authenticationFilteredRows,
+    authenticationKpi, authenticationTrend, authenticationModeMix, authenticationFailures,
+    authenticationMandates, authenticationMerchants, authenticationMCCs, kpi, overviewMetrics,
+    trend, channelMix, declineReasons, fraudReasons, cbReasons, acquirerTrend, performance3DS,
+    performanceTokenization, performanceEntryMode, performanceWallet, threeDSApprovalRateByCount,
+    tokenizedApprovalRateByCount, topMerchants, topMCCs, ticketDeclineData, declineMonthlyData,
+    declineMonthMixData, declineMerchantMixData, declineMCCMixData, topDeclineMerchants,
+    topDeclineMCCs, fraudMonthlyData, chargebackMonthlyData, chargebackLifecycleData,
+  ]);
 
-  kpis: {
-    authorizationTransactions: kpi.total,
-    approvedTransactions: kpi.approved,
-    declinedTransactions: kpi.declined,
-    approvalRate: kpi.approvalRate,
-    declineRate: kpi.declineRate,
-    approvedAmount: kpi.approvedAmt,
-    declinedAmount: kpi.declinedAmt,
-    fraudTransactions: kpi.fraud,
-    fraudRate: kpi.fraudRate,
-    fraudAmount: kpi.fraudAmt,
-    chargebackTransactions: kpi.cb,
-    chargebackRate: kpi.cbRate,
-    chargebackAmount: kpi.cbAmt,
-  },
-
-  monthlyVolume: trend.slice(-12),
-
-  channelApprovalRates: channelRates,
-
-  declineDrivers: declineReasons,
-
-  fraudDrivers: fraudReasons,
-
-  chargebackDrivers: cbReasons,
-
-  authorizationPerformance: {
-    acquirerApprovalTrend: acquirerTrend,
-    threeDS: performance3DS,
-    tokenization: performanceTokenization,
-    entryMode: performanceEntryMode,
-    wallet: performanceWallet,
-    topMerchants,
-    topMCCs,
-  },
-
-  declineAnalysis: {
-    declineReasons,
-    channelRates,
-    ticketDeclineMix: ticketDeclineData,
-  },
-}), [
-  aiMode,
-  section,
-  filters,
-  filteredRows.length,
-  kpi,
-  trend,
-  channelRates,
-  declineReasons,
-  fraudReasons,
-  cbReasons,
-  acquirerTrend,
-  performance3DS,
-  performanceTokenization,
-  performanceEntryMode,
-  performanceWallet,
-  topMerchants,
-  topMCCs,
-  ticketDeclineData,
-]);
 
   async function generateInsights(mode = aiMode, promptOverride = null) {
     setAiLoading(true);
@@ -3723,42 +3804,66 @@ const chargebackLifecycleData = useMemo(
               
                 <div className="context-grid">
                   <span>Analysis</span>
-                  <strong>
-                    {aiMode === "whole_dashboard"
-                      ? "Whole Dashboard"
-                      : "Current Section"}
-                  </strong>
-              
+                  <strong>{aiMode === "whole_dashboard" ? "Whole Dashboard" : "Current Section"}</strong>
+
                   <span>View</span>
                   <strong>{aiContext.view}</strong>
-              
-                  <span>Rows</span>
-                  <strong>{number(aiContext.rowsInScope)}</strong>
-              
-                  <span>Approval</span>
-                  <strong>{rate(kpi.approvalRate)}</strong>
-              
-                  <span>Decline</span>
-                  <strong>{rate(kpi.declineRate)}</strong>
-              
-                  <span>Fraud</span>
-                  <strong>{rate(kpi.fraudRate)}</strong>
-              
-                  <span>Chargeback</span>
-                  <strong>{rate(kpi.cbRate)}</strong>
+
+                  {aiMode === "whole_dashboard" ? (
+                    <>
+                      <span>Auth Rows</span>
+                      <strong>{number(aiContext.scope.authorizationRows)}</strong>
+                      <span>Authentication Rows</span>
+                      <strong>{number(aiContext.scope.authenticationRows)}</strong>
+                    </>
+                  ) : section === "authentication" ? (
+                    <>
+                      <span>Auth Transactions</span>
+                      <strong>{number(aiContext.currentSectionContext.kpis.totalAuthenticationTransactions)}</strong>
+                      <span>Success Rate</span>
+                      <strong>{rate(aiContext.currentSectionContext.kpis.successRate)}</strong>
+                      <span>Challenge Success</span>
+                      <strong>{rate(aiContext.currentSectionContext.kpis.challengeSuccessRate)}</strong>
+                      <span>Frictionless Success</span>
+                      <strong>{rate(aiContext.currentSectionContext.kpis.frictionlessSuccessRate)}</strong>
+                    </>
+                  ) : section === "decline" ? (
+                    <>
+                      <span>Declined Transactions</span>
+                      <strong>{number(aiContext.currentSectionContext.kpis.declinedTransactions)}</strong>
+                      <span>Declined Value</span>
+                      <strong>{money(aiContext.currentSectionContext.kpis.declinedValue)}</strong>
+                      <span>Decline Rate</span>
+                      <strong>{rate(aiContext.currentSectionContext.kpis.declineRate)}</strong>
+                    </>
+                  ) : (
+                    <>
+                      <span>Rows</span>
+                      <strong>{number(aiContext.scope.authorizationRows)}</strong>
+                      <span>Approval</span>
+                      <strong>{rate(kpi.approvalRate)}</strong>
+                      <span>Decline</span>
+                      <strong>{rate(kpi.declineRate)}</strong>
+                      <span>Fraud</span>
+                      <strong>{rate(kpi.fraudRate)}</strong>
+                      <span>Chargeback</span>
+                      <strong>{rate(kpi.cbRate)}</strong>
+                    </>
+                  )}
                 </div>
-              
-                {Object.keys(aiContext.filters || {}).length > 0 && (
+
+                {Object.entries(aiContext.filters || {}).some(([, values]) => Object.keys(values || {}).length > 0) && (
                   <div className="context-filters">
                     <div className="context-filter-title">ACTIVE FILTERS</div>
-              
                     <div className="context-filter-list">
-                      {Object.entries(aiContext.filters).map(([key, values]) => (
-                        <div className="context-filter-item" key={key}>
-                          <span>{key}</span>
-                          <strong>{values.join(", ")}</strong>
-                        </div>
-                      ))}
+                      {Object.entries(aiContext.filters).flatMap(([scopeName, scopeFilters]) =>
+                        Object.entries(scopeFilters || {}).map(([key, values]) => (
+                          <div className="context-filter-item" key={`${scopeName}-${key}`}>
+                            <span>{scopeName === "authentication" ? `Authentication · ${key}` : key}</span>
+                            <strong>{values.join(", ")}</strong>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -3771,7 +3876,7 @@ const chargebackLifecycleData = useMemo(
                   <div className="empty-ai">
                     <div className="empty-spark">✦</div>
                     <h3>Generate an analytical readout</h3>
-                    <p>The AI will use the current filters, KPIs, trends, decline drivers, fraud and chargeback signals.</p>
+                    <p>The AI will use the relevant filtered section data, visualizations, KPIs, decline signals, risk signals and authentication context.</p>
                   </div>
                 )}
               </div>

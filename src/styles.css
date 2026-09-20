@@ -548,9 +548,13 @@ button { cursor: pointer; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-grid.two,
-  .chart-grid.three {
+  .chart-grid.two {
     grid-template-columns: 1fr;
+  }
+
+  .chart-grid.three {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   }
 
   .sidebar {

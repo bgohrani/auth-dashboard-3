@@ -1235,6 +1235,8 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState("");
   const [aiResult, setAiResult] = useState("");
+  const [aiPromptResult, setAiPromptResult] = useState("");
+  const [aiPromptQuestion, setAiPromptQuestion] = useState("");
   const [aiController, setAiController] = useState(null);
   const [userPrompt, setUserPrompt] = useState("");
 
@@ -1679,9 +1681,20 @@ const chargebackLifecycleData = useMemo(
 
 
   async function generateInsights(mode = aiMode, promptOverride = null) {
+    const isPromptRequest = promptOverride !== null;
+    const promptText = isPromptRequest
+      ? String(promptOverride || "").trim()
+      : "";
+
     setAiLoading(true);
-    setAiStatus("Generating insights…");
-    setAiResult("");
+    setAiStatus(isPromptRequest ? "Answering your question…" : "Generating insights…");
+
+    // Prompt responses are separate from the dashboard analysis.
+    // Never clear the dashboard analysis when a user asks a question.
+    if (isPromptRequest) {
+      setAiPromptQuestion(promptText);
+    }
+
     const controller = new AbortController();
     setAiController(controller);
     try {
@@ -1707,13 +1720,25 @@ const chargebackLifecycleData = useMemo(
       if (!response.ok || !payload.success) {
         throw new Error(payload.error || "AI request failed.");
       }
-      setAiResult(payload.insights || "No insights were returned.");
-      setAiStatus("Insights generated");
+      const generatedText = payload.insights || "No insights were returned.";
+
+      if (isPromptRequest) {
+        setAiPromptResult(generatedText);
+        setAiStatus("Answer generated");
+      } else {
+        setAiResult(generatedText);
+        setAiStatus("Insights generated");
+      }
     } catch (err) {
       if (err?.name === "AbortError") setAiStatus("Generation stopped");
       else {
         setAiStatus("Generation failed");
-        setAiResult(`Unable to generate insights: ${err?.message || "Unknown error"}`);
+        const errorText = `Unable to generate insights: ${err?.message || "Unknown error"}`;
+        if (isPromptRequest) {
+          setAiPromptResult(errorText);
+        } else {
+          setAiResult(errorText);
+        }
       }
     } finally {
       setAiLoading(false);
@@ -3948,6 +3973,7 @@ const chargebackLifecycleData = useMemo(
                   </div>
                 )}
               </div>
+
               <div className="ai-prompt-box">
                 <input
                   type="text"
@@ -3955,21 +3981,40 @@ const chargebackLifecycleData = useMemo(
                   onChange={(e) => setUserPrompt(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && userPrompt.trim() && !aiLoading) {
-                      generateInsights(aiMode);
+                      const question = userPrompt.trim();
+                      setUserPrompt("");
+                      generateInsights(aiMode, question);
                     }
                   }}
                   placeholder="Ask AI anything about this dashboard..."
                   disabled={aiLoading}
                 />
-              
+
                 <button
                   className="ai-prompt-send"
-                  onClick={() => generateInsights(aiMode)}
+                  onClick={() => {
+                    const question = userPrompt.trim();
+                    if (!question) return;
+                    setUserPrompt("");
+                    generateInsights(aiMode, question);
+                  }}
                   disabled={!userPrompt.trim() || aiLoading}
                 >
                   Ask
                 </button>
               </div>
+
+              {aiPromptResult && (
+                <div className="ai-prompt-result">
+                  <div className="ai-prompt-result-title">
+                    {aiPromptQuestion || "Your question"}
+                  </div>
+                  <div className="ai-prompt-result-body">
+                    {renderAIResult(aiPromptResult)}
+                  </div>
+                </div>
+              )}
+
             </motion.aside>
           </>
         )}

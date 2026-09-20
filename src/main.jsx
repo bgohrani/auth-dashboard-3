@@ -385,14 +385,37 @@ function declineMonthlyTrend(rows) {
     x.total += n(r["approved count"]) + n(r["decline count"]);
   });
 
-  return [...map.values()]
+  const data = [...map.values()]
     .sort((a, b) => String(a.month).localeCompare(String(b.month)))
     .map((x) => ({
       ...x,
       declineRate: pct(x.declined, x.total),
     }));
-}
 
+  if (!data.length) return data;
+
+  const minAmount = Math.min(...data.map((x) => x.declineAmount));
+  const maxAmount = Math.max(...data.map((x) => x.declineAmount));
+
+  const minRate = Math.min(...data.map((x) => x.declineRate));
+  const maxRate = Math.max(...data.map((x) => x.declineRate));
+
+  const amountRange = Math.max(maxAmount - minAmount, 1);
+  const rateRange = Math.max(maxRate - minRate, 0.01);
+
+  return data.map((x) => ({
+    ...x,
+
+    // Visual position of the decline-rate line on the same axis.
+    // Keeps the line in the middle of the chart while preserving
+    // the actual declineRate value for the tooltip.
+    declineRateVisual:
+      minAmount +
+      amountRange *
+        (0.25 +
+          0.5 * ((x.declineRate - minRate) / rateRange)),
+  }));
+}
 
 function declineReasonMixByDimension(rows, key, limit = null) {
   const dimensionMap = new Map();
@@ -1532,66 +1555,50 @@ const declineMCCMixData = useMemo(
                     <ResponsiveContainer width="100%" height={320}>
                       <ComposedChart
                         data={declineMonthlyData}
-                        margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
                       >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                        />
-            
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    
                         <XAxis
                           dataKey="month"
                           tick={{ fontSize: 11 }}
                         />
-            
+                    
                         <YAxis
-                          yAxisId="amount"
+                          domain={["dataMin", "dataMax"]}
                           tick={{ fontSize: 11 }}
-                          tickFormatter={money}
+                          tickFormatter={(value) => money(value)}
                         />
-            
-                        <YAxis
-                          yAxisId="rate"
-                          orientation="right"
-                          domain={[0, 100]}
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(value) => `${value}%`}
-                        />
-            
+                    
                         <Tooltip
-                          formatter={(value, name) => {
+                          formatter={(value, name, props) => {
                             if (name === "Decline Rate") {
-                              return [
-                                `${Number(value).toFixed(2)}%`,
-                                name,
-                              ];
+                              return [`${Number(props.payload.declineRate).toFixed(1)}%`, name];
                             }
-            
-                            return [
-                              money(value),
-                              "Decline Amount",
-                            ];
+                    
+                            return [money(value), "Decline Amount"];
                           }}
                         />
-            
-                        <Legend />
-            
+                    
                         <Bar
-                          yAxisId="amount"
                           dataKey="declineAmount"
                           name="Decline Amount"
                           fill="#46b5ff"
                           radius={[6, 6, 0, 0]}
                         />
-            
+                    
                         <Line
-                          yAxisId="rate"
                           type="monotone"
-                          dataKey="declineRate"
+                          dataKey="declineRateVisual"
                           name="Decline Rate"
                           stroke="#ff6b87"
                           strokeWidth={3}
-                          dot={{ r: 4 }}
+                          dot={{
+                            r: 5,
+                            fill: "#ff6b87",
+                            stroke: "#ffffff",
+                            strokeWidth: 2,
+                          }}
                           activeDot={{ r: 6 }}
                         />
                       </ComposedChart>
@@ -1610,6 +1617,7 @@ const declineMCCMixData = useMemo(
                       <BarChart
                         data={ticketDeclineData}
                         margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                        barCategoryGap="35%"
                       >
                         <CartesianGrid
                           strokeDasharray="3 3"
@@ -1764,6 +1772,7 @@ const declineMCCMixData = useMemo(
             
                         <YAxis
                           domain={[0, 100]}
+                          ticks={[0, 25, 50, 75, 100]}
                           tickFormatter={(value) => `${value}%`}
                           tick={{ fontSize: 11 }}
                         />
@@ -1834,6 +1843,7 @@ const declineMCCMixData = useMemo(
             
                         <YAxis
                           domain={[0, 100]}
+                          ticks={[0, 25, 50, 75, 100]}
                           tickFormatter={(value) => `${value}%`}
                           tick={{ fontSize: 11 }}
                         />

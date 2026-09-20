@@ -1089,17 +1089,29 @@ function renderAIResult(text) {
   }
 
   const renderLine = (line, index) => {
-    // Remove empty markdown bullets such as "-", "*", "•", or numbered
-    // bullets with no actual content.
+    // Remove empty markdown bullets and placeholder bullets such as
+    // "-", "--", "—", "*", "•", or numbered bullets with no actual content.
     const bulletMatch = line.match(
       /^(?:[-*•]|\d+[.)])\s*(.*)$/
     );
-    const value = bulletMatch ? bulletMatch[1].trim() : line.trim();
 
-    if (!value) return null;
+    const value = bulletMatch
+      ? bulletMatch[1].trim()
+      : line.trim();
+
+    // Ignore empty / placeholder content.
+    const isPlaceholder =
+      !value ||
+      /^[-–—_*•]+$/.test(value);
+
+    if (isPlaceholder) return null;
 
     const boldMatch = value.match(/^\*\*(.*?)\*\*\s*(.*)$/);
     const cleanedValue = cleanInlineMarkdown(value);
+
+    if (!cleanedValue || /^[-–—_*•]+$/.test(cleanedValue)) {
+      return null;
+    }
 
     if (bulletMatch) {
       return (
@@ -1140,10 +1152,21 @@ function renderAIResult(text) {
           .map((line) => line.trim())
           .filter((line) => {
             if (!line) return false;
+
             const bulletMatch = line.match(
               /^(?:[-*•]|\d+[.)])\s*(.*)$/
             );
-            return !bulletMatch || bulletMatch[1].trim().length > 0;
+
+            const value = bulletMatch
+              ? bulletMatch[1].trim()
+              : line.trim();
+
+            // Remove empty and placeholder bullets such as:
+            // -, --, —, *, •
+            if (!value) return false;
+            if (/^[-–—_*•]+$/.test(value)) return false;
+
+            return true;
           });
 
         if (!content.length) return null;

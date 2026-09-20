@@ -335,3 +335,57 @@ button { cursor: pointer; }
   color: #182638;
   font-weight: 700;
 }
+
+
+
+.ai-prompt-box {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e3eaf2;
+}
+
+.ai-prompt-box input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 13px;
+  border: 1px solid #d7e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #182638;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ai-prompt-box input::placeholder {
+  color: #718096;
+}
+
+.ai-prompt-box input:focus {
+  border-color: #1677d2;
+  box-shadow: 0 0 0 3px rgba(22, 119, 210, 0.08);
+}
+
+.ai-prompt-send {
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 8px;
+  background: #1677d2;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ai-prompt-send:hover:not(:disabled) {
+  filter: brightness(0.96);
+}
+
+.ai-prompt-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

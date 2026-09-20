@@ -37,8 +37,8 @@ const FILTER_GROUPS = [
   { key: "issuer", label: "Issuer", icon: "🏦", fields: [["issuer_name", "Issuer Name"], ["issuer_country", "Issuer Country"]] },
   { key: "merchant", label: "Merchant", icon: "🏪", fields: [["merchant_name", "Merchant Name"], ["mcc", "MCC"]] },
   { key: "product", label: "Product", icon: "▣", fields: [["prod type", "Product"]] },
-  { key: "payment", label: "Payment", icon: "↔", fields: [["acquirer_name", "Acquirer"], ["channel", "Channel"], ["wallet", "Wallet"]] },
-  { key: "authentication", label: "Authentication", icon: "◇", fields: [["3DS", "3DS"], ["tokenization", "Tokenization"], ["entry mode code", "Entry Mode"]] },
+  { key: "payment", label: "Payment", icon: "↔", fields: [["acquirer_name", "Acquirer"],["acq_country", "Acq Country"],["channel", "Channel"], ["wallet", "Wallet"],["dom_xb_flag", "Domestic/XB"]] },
+  { key: "authentication", label: "Authentication", icon: "◇", fields: [["3DS", "3DS Flag"], ["tokenization", "Tokenization"], ["entry mode code", "Entry Mode"]] },
   { key: "ticket", label: "Transaction", icon: "▤", fields: [["ticket size bands", "Ticket Band"]] },
 ];
 
@@ -341,6 +341,49 @@ function categoryMetrics(rows, key) {
     approvalRateByCount: pct(x.approved, x.totalCount),
     approvalRateByAmount: pct(x.approvedAmt, x.totalAmt),
   }));
+}
+
+function domesticXBMix(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const name = String(r.dom_xb_flag ?? "").trim();
+    if (!name) return;
+
+    const approved = n(r["approved count"]);
+    const declined = n(r["decline count"]);
+    const approvedAmt = n(r["approved amt"]);
+    const declinedAmt = n(r["decline amount"]);
+
+    const current = map.get(name) || {
+      name,
+      totalCount: 0,
+      approved: 0,
+      totalAmt: 0,
+      approvedAmt: 0,
+    };
+
+    current.totalCount += approved + declined;
+    current.approved += approved;
+    current.approvedAmt += approvedAmt;
+    current.totalAmt += approvedAmt + declinedAmt;
+
+    map.set(name, current);
+  });
+
+  const totalCount = [...map.values()].reduce(
+    (sum, x) => sum + x.totalCount,
+    0
+  );
+
+  return [...map.values()]
+    .map((x) => ({
+      ...x,
+      share: pct(x.totalCount, totalCount),
+      approvalRateByCount: pct(x.approved, x.totalCount),
+      approvalRateByAmount: pct(x.approvedAmt, x.totalAmt),
+    }))
+    .sort((a, b) => b.totalCount - a.totalCount);
 }
 
 function primaryCategoryApprovalRate(data, preferredPattern) {
@@ -1435,6 +1478,11 @@ function App() {
     [filteredRows]
   );
 
+  const domesticXBMixData = useMemo(
+  () => domesticXBMix(filteredRows),
+  [filteredRows]
+  );
+
   const declineReasons = useMemo(
     () =>
       groupBy(filteredRows, "response_description", (r) => n(r["decline count"])).slice(0, 8),
@@ -2108,15 +2156,73 @@ const chargebackLifecycleData = useMemo(
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>
-                <div className="chart-grid two">
-                  <ChartCard title="Top decline drivers" subtitle="% of total declined transactions by response description">
-                    <SimpleBars
-                      data={declineReasons.map((x) => ({
-                        ...x,
-                        value: pct(x.value, kpi.declined),
-                      }))}
-                      valueSuffix="%"
-                    />
+                <div className="chart-grid three">
+                  <ChartCard
+                    title="Top decline drivers"
+                    subtitle="% of total declined transactions by response description"
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "10px",
+                        padding: "4px 2px",
+                      }}
+                    >
+                      {declineReasons.map((x, index) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            fontSize: "13px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                              minWidth: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "20px",
+                                color: "#718096",
+                                fontSize: "12px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {index + 1}.
+                            </span>
+                  
+                            <span
+                              style={{
+                                color: "#182638",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {x.name}
+                            </span>
+                          </div>
+                  
+                          <strong
+                            style={{
+                              color: "#182638",
+                              fontWeight: 600,
+                              flexShrink: 0,
+                            }}
+                          >
+                            {pct(x.value, kpi.declined).toFixed(1)}%
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
                   </ChartCard>
                   <ChartCard title="Transaction mix" subtitle="Network and product mix by transaction count">
                     <div className="mix-bars">
@@ -2315,6 +2421,108 @@ const chargebackLifecycleData = useMemo(
                         })()}
                       </div>
 
+                    </div>
+                  </ChartCard>
+                  <ChartCard
+                    title="Domestic vs XB"
+                    subtitle="% share of total transactions"
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        height: "210px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={domesticXBMixData}
+                            dataKey="totalCount"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={45}
+                            outerRadius={75}
+                            paddingAngle={2}
+                          >
+                            {domesticXBMixData.map((entry, index) => (
+                              <Cell
+                                key={`dom-xb-${entry.name}`}
+                                fill={["#1677d2", "#159a68"][index % 2]}
+                              />
+                            ))}
+                          </Pie>
+                  
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                  
+                              const item = payload[0]?.payload;
+                  
+                              return (
+                                <div
+                                  style={{
+                                    background: "#ffffff",
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: "8px",
+                                    padding: "10px 12px",
+                                    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                                    fontSize: "12px",
+                                    color: "#182638",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontWeight: 600,
+                                      marginBottom: "6px",
+                                    }}
+                                  >
+                                    {item.name}
+                                  </div>
+                  
+                                  <div>
+                                    Transaction Share:{" "}
+                                    <strong>{item.share.toFixed(1)}%</strong>
+                                  </div>
+                  
+                                  <div>
+                                    Approval Rate by Amount:{" "}
+                                    <strong>
+                                      {item.approvalRateByAmount.toFixed(1)}%
+                                    </strong>
+                                  </div>
+                  
+                                  <div>
+                                    Approval Rate by Count:{" "}
+                                    <strong>
+                                      {item.approvalRateByCount.toFixed(1)}%
+                                    </strong>
+                                  </div>
+                                </div>
+                              );
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  
+                    <div className="mix-legend">
+                      {domesticXBMixData.map((item, index) => (
+                        <span key={item.name}>
+                          <i
+                            className="mix-dot"
+                            style={{
+                              background:
+                                ["#1677d2", "#159a68"][index % 2],
+                            }}
+                          />{" "}
+                          {item.name}{" "}
+                          <strong>{item.share.toFixed(1)}%</strong>
+                        </span>
+                      ))}
                     </div>
                   </ChartCard>
                 </div>

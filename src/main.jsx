@@ -2039,8 +2039,8 @@ const chargebackLifecycleData = useMemo(
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          outerRadius="35%"
-                          innerRadius="18%"
+                          outerRadius="45%"
+                          innerRadius="23%"
                           paddingAngle={2}
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                         >
@@ -3292,8 +3292,8 @@ const chargebackLifecycleData = useMemo(
                           nameKey="name"
                           cx="50%"
                           cy="46%"
-                          outerRadius="31%"
-                          innerRadius="16%"
+                          outerRadius="42%"
+                          innerRadius="21%"
                           paddingAngle={2}
                         >
                           {chargebackLifecycleData.map((entry, index) => (
@@ -3654,8 +3654,8 @@ const chargebackLifecycleData = useMemo(
                           nameKey="name"
                           cx="50%"
                           cy="48%"
-                          outerRadius="31%"
-                          innerRadius="17%"
+                          outerRadius="42%"
+                          innerRadius="21%"
                           paddingAngle={2}
                           label={({ name, percent }) =>
                             `${name} ${(percent * 100).toFixed(1)}%`
@@ -4201,8 +4201,8 @@ function PerformancePie({ title, subtitle, data }) {
             nameKey="name"
             cx="50%"
             cy="48%"
-            outerRadius="30%"
-            innerRadius="15%"
+            outerRadius="42%"
+            innerRadius="21%"
             paddingAngle={2}
           >
             {data.map((entry, index) => (

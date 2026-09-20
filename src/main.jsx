@@ -1823,8 +1823,10 @@ const chargebackLifecycleData = useMemo(
             style={{
                 width: "38px",
                 height: "38px",
-                objectFit: "contain",
-                display: "block",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
             }}
           />
           <div>

@@ -2016,7 +2016,7 @@ const chargebackLifecycleData = useMemo(
             </div>
           ) : section === "performance" ? (
             <div className="kpi-grid">
-              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined count" />
               <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
               <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
               <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />

@@ -59,9 +59,9 @@ const MODEL_OPTIONS = [
   label: "DeepSeek V3 · Hugging Face",
   },
   {
-    provider: "nvidia",
-    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
-    label: "Nemotron 3.5 30B · NVIDIA",
+  provider: "nvidia",
+  model: "nvidia/nemotron-3-super-120b-a12b",
+  label: "Nemotron 3 Super 120B · NVIDIA",
   }
 ];
 

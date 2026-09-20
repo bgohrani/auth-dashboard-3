@@ -1092,6 +1092,58 @@ function renderAIResult(text) {
   );
 }
 
+function MixTooltipSegment({ className, width, label, approvalRateByAmount, approvalRateByCount }) {
+  const [hover, setHover] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+
+  return (
+    <div
+      className={className}
+      style={{ width }}
+      onMouseEnter={(e) => {
+        setHover(true);
+        setPosition({ x: e.clientX, y: e.clientY });
+      }}
+      onMouseMove={(e) => setPosition({ x: e.clientX, y: e.clientY })}
+      onMouseLeave={() => setHover(false)}
+    >
+      {hover && (
+        <div
+          style={{
+            position: "fixed",
+            left: position.x + 12,
+            top: position.y + 12,
+            zIndex: 9999,
+            background: "#ffffff",
+            border: "1px solid #e3eaf2",
+            borderRadius: "8px",
+            padding: "10px 12px",
+            boxShadow: "0 4px 14px rgba(24, 38, 56, 0.10)",
+            pointerEvents: "none",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <div
+            style={{
+              fontWeight: 600,
+              marginBottom: "6px",
+              color: "#182638",
+            }}
+          >
+            {label}
+          </div>
+          <div style={{ color: "#718096" }}>
+            Approval Rate by Amount: {Number(approvalRateByAmount || 0).toFixed(1)}%
+          </div>
+          <div style={{ color: "#718096" }}>
+            Approval Rate by Count: {Number(approvalRateByCount || 0).toFixed(1)}%
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [rows, setRows] = useState([]);
   const [authenticationRows, setAuthenticationRows] = useState([]);
@@ -1793,239 +1845,201 @@ const chargebackLifecycleData = useMemo(
                   </ChartCard>
                   <ChartCard title="Transaction mix" subtitle="Network and product mix by transaction count">
                     <div className="mix-bars">
-                  
+
                       <div className="mix-section">
                         <div className="mix-header">
                           <span>Card Network</span>
                         </div>
-                  
-                        <div className="mix-bar">
-                          {(() => {
-                            const visa = filteredRows
-                              .filter((r) => String(r.bin || "").startsWith("4"))
-                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                            const mastercard = filteredRows
-                              .filter((r) => String(r.bin || "").startsWith("5"))
-                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                            const total = visa + mastercard;
-                            const visaPct = pct(visa, total);
-                            const mcPct = pct(mastercard, total);
-                  
-                            return (
-                              <>
-                                <div
-                                  className="mix-segment visa"
-                                  title={`Visa — Approval Rate by Amount: ${pct(
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("4"))
-                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("4"))
-                                      .reduce(
-                                        (s, r) =>
-                                          s +
-                                          n(r["approved amt"]) +
-                                          n(r["decline amount"]),
-                                        0
-                                      )
-                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("4"))
-                                      .reduce((s, r) => s + n(r["approved count"]), 0),
-                                    visa
-                                  ).toFixed(1)}%`}
-                                  style={{ width: `${visaPct}%` }}
-                                />
-                                <div
-                                  className="mix-segment mastercard"
-                                  title={`Mastercard — Approval Rate by Amount: ${pct(
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("5"))
-                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("5"))
-                                      .reduce(
-                                        (s, r) =>
-                                          s +
-                                          n(r["approved amt"]) +
-                                          n(r["decline amount"]),
-                                        0
-                                      )
-                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
-                                    filteredRows
-                                      .filter((r) => String(r.bin || "").startsWith("5"))
-                                      .reduce((s, r) => s + n(r["approved count"]), 0),
-                                    mastercard
-                                  ).toFixed(1)}%`}
-                                  style={{ width: `${mcPct}%` }}
-                                />
-                              </>
-                            );
-                          })()}
-                        </div>
-                  
+
                         {(() => {
-                          const visa = filteredRows
-                            .filter((r) => String(r.bin || "").startsWith("4"))
-                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                          const mastercard = filteredRows
-                            .filter((r) => String(r.bin || "").startsWith("5"))
-                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
+                          const visaRows = filteredRows.filter((r) =>
+                            String(r.bin || "").startsWith("4")
+                          );
+                          const mastercardRows = filteredRows.filter((r) =>
+                            String(r.bin || "").startsWith("5")
+                          );
+
+                          const visa = visaRows.reduce(
+                            (s, r) => s + n(r["approved count"]) + n(r["decline count"]),
+                            0
+                          );
+                          const mastercard = mastercardRows.reduce(
+                            (s, r) => s + n(r["approved count"]) + n(r["decline count"]),
+                            0
+                          );
+
+                          const visaApproved = visaRows.reduce(
+                            (s, r) => s + n(r["approved count"]),
+                            0
+                          );
+                          const mastercardApproved = mastercardRows.reduce(
+                            (s, r) => s + n(r["approved count"]),
+                            0
+                          );
+
+                          const visaApprovedAmt = visaRows.reduce(
+                            (s, r) => s + n(r["approved amt"]),
+                            0
+                          );
+                          const mastercardApprovedAmt = mastercardRows.reduce(
+                            (s, r) => s + n(r["approved amt"]),
+                            0
+                          );
+
+                          const visaTotalAmt = visaRows.reduce(
+                            (s, r) => s + n(r["approved amt"]) + n(r["decline amount"]),
+                            0
+                          );
+                          const mastercardTotalAmt = mastercardRows.reduce(
+                            (s, r) => s + n(r["approved amt"]) + n(r["decline amount"]),
+                            0
+                          );
+
                           const total = visa + mastercard;
-                  
+
                           return (
-                            <div className="mix-legend">
-                              <span><i className="mix-dot visa-dot" /> Visa <strong>{pct(visa, total).toFixed(1)}%</strong></span>
-                              <span><i className="mix-dot mastercard-dot" /> Mastercard <strong>{pct(mastercard, total).toFixed(1)}%</strong></span>
-                            </div>
+                            <>
+                              <div className="mix-bar">
+                                <MixTooltipSegment
+                                  className="mix-segment visa"
+                                  width={`${pct(visa, total)}%`}
+                                  label="Visa"
+                                  approvalRateByAmount={pct(visaApprovedAmt, visaTotalAmt)}
+                                  approvalRateByCount={pct(visaApproved, visa)}
+                                />
+                                <MixTooltipSegment
+                                  className="mix-segment mastercard"
+                                  width={`${pct(mastercard, total)}%`}
+                                  label="Mastercard"
+                                  approvalRateByAmount={pct(
+                                    mastercardApprovedAmt,
+                                    mastercardTotalAmt
+                                  )}
+                                  approvalRateByCount={pct(mastercardApproved, mastercard)}
+                                />
+                              </div>
+
+                              <div className="mix-legend">
+                                <span>
+                                  <i className="mix-dot visa-dot" /> Visa{" "}
+                                  <strong>{pct(visa, total).toFixed(1)}%</strong>
+                                </span>
+                                <span>
+                                  <i className="mix-dot mastercard-dot" /> Mastercard{" "}
+                                  <strong>{pct(mastercard, total).toFixed(1)}%</strong>
+                                </span>
+                              </div>
+                            </>
                           );
                         })()}
                       </div>
-                  
+
                       <div className="mix-section">
                         <div className="mix-header">
                           <span>Product Type</span>
                         </div>
-                  
-                        <div className="mix-bar">
-                          {(() => {
-                            const credit = filteredRows
-                              .filter((r) => String(r["prod type"]).toLowerCase().includes("credit"))
-                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                            const debit = filteredRows
-                              .filter((r) => String(r["prod type"]).toLowerCase().includes("debit"))
-                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                            const prepaid = filteredRows
-                              .filter((r) => String(r["prod type"]).toLowerCase().includes("prepaid"))
-                              .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                            const total = credit + debit + prepaid;
-                  
-                            return (
-                              <>
-                                <div
-                                  className="mix-segment credit"
-                                  title={`Credit — Approval Rate by Amount: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("credit")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("credit")
-                                      )
-                                      .reduce(
-                                        (s, r) =>
-                                          s +
-                                          n(r["approved amt"]) +
-                                          n(r["decline amount"]),
-                                        0
-                                      )
-                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("credit")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved count"]), 0),
-                                    credit
-                                  ).toFixed(1)}%`}
-                                  style={{ width: `${pct(credit, total)}%` }}
-                                />
-                                <div
-                                  className="mix-segment debit"
-                                  title={`Debit — Approval Rate by Amount: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("debit")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("debit")
-                                      )
-                                      .reduce(
-                                        (s, r) =>
-                                          s +
-                                          n(r["approved amt"]) +
-                                          n(r["decline amount"]),
-                                        0
-                                      )
-                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("debit")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved count"]), 0),
-                                    debit
-                                  ).toFixed(1)}%`}
-                                  style={{ width: `${pct(debit, total)}%` }}
-                                />
-                                <div
-                                  className="mix-segment prepaid"
-                                  title={`Prepaid — Approval Rate by Amount: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("prepaid")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("prepaid")
-                                      )
-                                      .reduce(
-                                        (s, r) =>
-                                          s +
-                                          n(r["approved amt"]) +
-                                          n(r["decline amount"]),
-                                        0
-                                      )
-                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
-                                    filteredRows
-                                      .filter((r) =>
-                                        String(r["prod type"]).toLowerCase().includes("prepaid")
-                                      )
-                                      .reduce((s, r) => s + n(r["approved count"]), 0),
-                                    prepaid
-                                  ).toFixed(1)}%`}
-                                  style={{ width: `${pct(prepaid, total)}%` }}
-                                />
-                              </>
-                            );
-                          })()}
-                        </div>
-                  
+
                         {(() => {
-                          const credit = filteredRows
-                            .filter((r) => String(r["prod type"]).toLowerCase().includes("credit"))
-                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                          const debit = filteredRows
-                            .filter((r) => String(r["prod type"]).toLowerCase().includes("debit"))
-                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                          const prepaid = filteredRows
-                            .filter((r) => String(r["prod type"]).toLowerCase().includes("prepaid"))
-                            .reduce((s, r) => s + n(r["approved count"]) + n(r["decline count"]), 0);
-                  
-                          const total = credit + debit + prepaid;
-                  
+                          const productRows = {
+                            Credit: filteredRows.filter((r) =>
+                              String(r["prod type"]).toLowerCase().includes("credit")
+                            ),
+                            Debit: filteredRows.filter((r) =>
+                              String(r["prod type"]).toLowerCase().includes("debit")
+                            ),
+                            Prepaid: filteredRows.filter((r) =>
+                              String(r["prod type"]).toLowerCase().includes("prepaid")
+                            ),
+                          };
+
+                          const metrics = Object.fromEntries(
+                            Object.entries(productRows).map(([name, rows]) => {
+                              const totalCount = rows.reduce(
+                                (s, r) =>
+                                  s + n(r["approved count"]) + n(r["decline count"]),
+                                0
+                              );
+                              const approvedCount = rows.reduce(
+                                (s, r) => s + n(r["approved count"]),
+                                0
+                              );
+                              const approvedAmt = rows.reduce(
+                                (s, r) => s + n(r["approved amt"]),
+                                0
+                              );
+                              const totalAmt = rows.reduce(
+                                (s, r) =>
+                                  s + n(r["approved amt"]) + n(r["decline amount"]),
+                                0
+                              );
+
+                              return [
+                                name,
+                                {
+                                  totalCount,
+                                  approvalRateByCount: pct(approvedCount, totalCount),
+                                  approvalRateByAmount: pct(approvedAmt, totalAmt),
+                                },
+                              ];
+                            })
+                          );
+
+                          const total =
+                            metrics.Credit.totalCount +
+                            metrics.Debit.totalCount +
+                            metrics.Prepaid.totalCount;
+
                           return (
-                            <div className="mix-legend">
-                              <span><i className="mix-dot credit-dot" /> Credit <strong>{pct(credit, total).toFixed(1)}%</strong></span>
-                              <span><i className="mix-dot debit-dot" /> Debit <strong>{pct(debit, total).toFixed(1)}%</strong></span>
-                              <span><i className="mix-dot prepaid-dot" /> Prepaid <strong>{pct(prepaid, total).toFixed(1)}%</strong></span>
-                            </div>
+                            <>
+                              <div className="mix-bar">
+                                <MixTooltipSegment
+                                  className="mix-segment credit"
+                                  width={`${pct(metrics.Credit.totalCount, total)}%`}
+                                  label="Credit"
+                                  approvalRateByAmount={metrics.Credit.approvalRateByAmount}
+                                  approvalRateByCount={metrics.Credit.approvalRateByCount}
+                                />
+                                <MixTooltipSegment
+                                  className="mix-segment debit"
+                                  width={`${pct(metrics.Debit.totalCount, total)}%`}
+                                  label="Debit"
+                                  approvalRateByAmount={metrics.Debit.approvalRateByAmount}
+                                  approvalRateByCount={metrics.Debit.approvalRateByCount}
+                                />
+                                <MixTooltipSegment
+                                  className="mix-segment prepaid"
+                                  width={`${pct(metrics.Prepaid.totalCount, total)}%`}
+                                  label="Prepaid"
+                                  approvalRateByAmount={metrics.Prepaid.approvalRateByAmount}
+                                  approvalRateByCount={metrics.Prepaid.approvalRateByCount}
+                                />
+                              </div>
+
+                              <div className="mix-legend">
+                                <span>
+                                  <i className="mix-dot credit-dot" /> Credit{" "}
+                                  <strong>
+                                    {pct(metrics.Credit.totalCount, total).toFixed(1)}%
+                                  </strong>
+                                </span>
+                                <span>
+                                  <i className="mix-dot debit-dot" /> Debit{" "}
+                                  <strong>
+                                    {pct(metrics.Debit.totalCount, total).toFixed(1)}%
+                                  </strong>
+                                </span>
+                                <span>
+                                  <i className="mix-dot prepaid-dot" /> Prepaid{" "}
+                                  <strong>
+                                    {pct(metrics.Prepaid.totalCount, total).toFixed(1)}%
+                                  </strong>
+                                </span>
+                              </div>
+                            </>
                           );
                         })()}
                       </div>
-                  
+
                     </div>
                   </ChartCard>
                 </div>

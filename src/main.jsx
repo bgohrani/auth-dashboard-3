@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import Papa from "papaparse";
 import { motion, AnimatePresence } from "framer-motion";
+import paymentsLifecycleLogo from "./payments-lifecycle-logo.png";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -1817,7 +1818,7 @@ const chargebackLifecycleData = useMemo(
       <aside className="sidebar">
         <div className="brand">
           <img
-            src="/payments-lifecycle-logo.png"
+            src={paymentsLifecycleLogo}
             alt="Payments Lifecycle Dashboard"
           />
           <div>

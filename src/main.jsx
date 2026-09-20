@@ -472,6 +472,7 @@ function App() {
   const [aiStatus, setAiStatus] = useState("");
   const [aiResult, setAiResult] = useState("");
   const [aiController, setAiController] = useState(null);
+  const [userPrompt, setUserPrompt] = useState("");
 
   useEffect(() => {
     Papa.parse(GOOGLE_SHEET_CSV_URL, {
@@ -690,7 +691,8 @@ const ticketDeclineData = useMemo(
             ...aiContext,
             analysisMode: mode,
           },
-analysisMode: mode,
+          analysisMode: mode,
+          userPrompt: userPrompt.trim(),
         }),
         signal: controller.signal,
       });
@@ -1527,6 +1529,28 @@ analysisMode: mode,
                     <p>The AI will use the current filters, KPIs, trends, decline drivers, fraud and chargeback signals.</p>
                   </div>
                 )}
+              </div>
+              <div className="ai-prompt-box">
+                <input
+                  type="text"
+                  value={userPrompt}
+                  onChange={(e) => setUserPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && userPrompt.trim() && !aiLoading) {
+                      generateInsights(aiMode);
+                    }
+                  }}
+                  placeholder="Ask AI anything about this dashboard..."
+                  disabled={aiLoading}
+                />
+              
+                <button
+                  className="ai-prompt-send"
+                  onClick={() => generateInsights(aiMode)}
+                  disabled={!userPrompt.trim() || aiLoading}
+                >
+                  Ask
+                </button>
               </div>
             </motion.aside>
           </>

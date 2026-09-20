@@ -1897,6 +1897,17 @@ const chargebackLifecycleData = useMemo(
           <span className="live-dot" />
           <span>Live Data from Vercel Blob</span>
         </div>
+        <div
+          style={{
+            marginTop: "auto",
+            padding: "16px 12px",
+            fontSize: "12px",
+            color: "#718096",
+            textAlign: "center",
+          }}
+        >
+          © Developed by Bharath Gohrani
+        </div>
       </aside>
 
       <main className="main">

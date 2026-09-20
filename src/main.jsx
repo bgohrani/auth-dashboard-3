@@ -57,7 +57,12 @@ const MODEL_OPTIONS = [
   provider: "huggingface",
   model: "deepseek-ai/DeepSeek-V3-0324",
   label: "DeepSeek V3 · Hugging Face",
-}
+  },
+  {
+    provider: "nvidia",
+    model: "nvidia/nemotron-3.5-lightning-30b-a3b",
+    label: "Nemotron 3.5 30B · NVIDIA",
+  }
 ];
 
 const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, []]));

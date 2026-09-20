@@ -998,10 +998,6 @@ function AuthFilterBar({ filters, options, setFilters }) {
 function renderAIResult(text) {
   if (!text) return null;
 
-  const cleanedText = text
-    .replace(/\r\n/g, "\n")
-    .replace(/^#{1,6}\s*/gm, "");
-
   const sectionNames = [
     "EXECUTIVE STORYLINE",
     "KEY OBSERVATIONS",
@@ -1012,79 +1008,151 @@ function renderAIResult(text) {
     "STORYLINE",
   ];
 
-  const headingRegex = new RegExp(
-    `\\n?(${sectionNames.join("|")})\\s*\\n?`,
-    "gi"
-  );
+  const normalizeLine = (line) =>
+    String(line ?? "")
+      .replace(/\r/g, "")
+      .replace(/^\s*#{1,6}\s*/, "")
+      .replace(/^\s*\*\*(.*?)\*\*\s*:?\s*$/, "$1")
+      .trim();
 
-  const parts = cleanedText
-    .split(headingRegex)
-    .map((x) => x.trim())
-    .filter(Boolean);
+  const isHeading = (line) => {
+    const normalized = normalizeLine(line)
+      .replace(/:$/, "")
+      .trim()
+      .toUpperCase();
+
+    return sectionNames.includes(normalized);
+  };
+
+  const cleanInlineMarkdown = (value) =>
+    String(value ?? "")
+      .replace(/`([^`]*)`/g, "$1")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/__(.*?)__/g, "$1")
+      .trim();
+
+  const lines = String(text)
+    .replace(/\r\n/g, "\n")
+    .replace(/```(?:markdown|md|text)?/gi, "")
+    .replace(/```/g, "")
+    .split("\n")
+    .map((line) => line.trim());
 
   const sections = [];
+  let current = null;
+  let preamble = [];
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i];
+  lines.forEach((rawLine) => {
+    const line = normalizeLine(rawLine);
 
-    if (sectionNames.includes(part.toUpperCase())) {
-      sections.push({
-        title: part.toUpperCase(),
-        content: parts[i + 1] || "",
-      });
-      i++;
+    if (!line) return;
+
+    if (isHeading(line)) {
+      const title = cleanInlineMarkdown(line)
+        .replace(/:$/, "")
+        .trim()
+        .toUpperCase();
+
+      if (current && current.content.length) {
+        sections.push(current);
+      }
+
+      current = {
+        title,
+        content: [],
+      };
+      return;
     }
+
+    if (!current) {
+      preamble.push(line);
+      return;
+    }
+
+    current.content.push(line);
+  });
+
+  if (current && current.content.length) {
+    sections.push(current);
   }
+
+  if (!sections.length && preamble.length) {
+    sections.push({
+      title: "INSIGHTS",
+      content: preamble,
+    });
+  } else if (preamble.length) {
+    sections.unshift({
+      title: "SUMMARY",
+      content: preamble,
+    });
+  }
+
+  const renderLine = (line, index) => {
+    // Remove empty markdown bullets such as "-", "*", "•", or numbered
+    // bullets with no actual content.
+    const bulletMatch = line.match(
+      /^(?:[-*•]|\d+[.)])\s*(.*)$/
+    );
+    const value = bulletMatch ? bulletMatch[1].trim() : line.trim();
+
+    if (!value) return null;
+
+    const boldMatch = value.match(/^\*\*(.*?)\*\*\s*(.*)$/);
+    const cleanedValue = cleanInlineMarkdown(value);
+
+    if (bulletMatch) {
+      return (
+        <div className="ai-result-bullet" key={index}>
+          <span className="ai-bullet-dot">•</span>
+          <div className="ai-result-bullet-text">
+            {boldMatch ? (
+              <>
+                <strong>{cleanInlineMarkdown(boldMatch[1])}</strong>
+                {boldMatch[2] ? ` ${cleanInlineMarkdown(boldMatch[2])}` : ""}
+              </>
+            ) : (
+              cleanedValue
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <p key={index}>
+        {boldMatch ? (
+          <>
+            <strong>{cleanInlineMarkdown(boldMatch[1])}</strong>
+            {boldMatch[2] ? ` ${cleanInlineMarkdown(boldMatch[2])}` : ""}
+          </>
+        ) : (
+          cleanedValue
+        )}
+      </p>
+    );
+  };
 
   return (
     <div className="ai-result-sections">
       {sections.map((section, index) => {
-        const lines = section.content
-          .split("\n")
+        const content = section.content
           .map((line) => line.trim())
-          .filter(Boolean);
+          .filter((line) => {
+            if (!line) return false;
+            const bulletMatch = line.match(
+              /^(?:[-*•]|\d+[.)])\s*(.*)$/
+            );
+            return !bulletMatch || bulletMatch[1].trim().length > 0;
+          });
+
+        if (!content.length) return null;
 
         return (
           <div className="ai-result-card" key={`${section.title}-${index}`}>
-            <div className="ai-result-title">
-              {section.title}
-            </div>
-
+            <div className="ai-result-title">{section.title}</div>
             <div className="ai-result-content">
-              {lines.map((line, i) => {
-                const bullet = line.match(/^[-•]\s*(.*)/);
-
-                if (bullet) {
-                  const value = bullet[1];
-
-                  const boldMatch = value.match(
-                    /^\*\*(.*?)\*\*\s*(.*)$/
-                  );
-
-                  return (
-                    <div className="ai-result-bullet" key={i}>
-                      <span className="ai-bullet-dot">•</span>
-
-                      <div>
-                        {boldMatch ? (
-                          <>
-                            <strong>{boldMatch[1]}</strong>{" "}
-                            {boldMatch[2]}
-                          </>
-                        ) : (
-                          value.replace(/\*\*/g, "")
-                        )}
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <p key={i}>
-                    {line.replace(/\*\*/g, "")}
-                  </p>
-                );
-              })}
+              {content.map(renderLine)}
             </div>
           </div>
         );

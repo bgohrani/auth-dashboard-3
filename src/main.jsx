@@ -1818,8 +1818,8 @@ const chargebackLifecycleData = useMemo(
         <div className="brand">
           <div className="brand-mark">A</div>
           <div>
-            <div className="brand-name">Authorization</div>
-            <div className="brand-sub">INTELLIGENCE</div>
+            <div className="brand-name">Payments Lifecycle</div>
+            <div className="brand-sub">DASHBOARD</div>
           </div>
         </div>
 

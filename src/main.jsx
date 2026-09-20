@@ -3611,7 +3611,7 @@ const chargebackLifecycleData = useMemo(
                   {/* MONTHLY FRAUD */}
                   <ChartCard
                     title="Monthly Fraud Trend"
-                    subtitle="Fraud volume with fraud rate in BPS"
+                    subtitle="Fraud Count with fraud rate in BPS"
                   >
                     <ResponsiveContainer width="100%" height={320}>
                       <ComposedChart
@@ -3682,7 +3682,7 @@ const chargebackLifecycleData = useMemo(
                   {/* MONTHLY CHARGEBACK */}
                   <ChartCard
                     title="Monthly Chargeback Trend"
-                    subtitle="Chargeback volume with chargeback rate in BPS"
+                    subtitle="Chargeback Count with chargeback rate in BPS"
                   >
                     <ResponsiveContainer width="100%" height={320}>
                       <ComposedChart

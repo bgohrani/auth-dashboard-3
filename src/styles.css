@@ -359,6 +359,51 @@ button { cursor: pointer; }
   font-weight: 700;
 }
 
+/* Separate user-question response.
+   The dashboard analysis remains above the prompt. */
+.ai-prompt-result {
+  margin-top: 12px;
+  border: 1px solid #e3eaf2;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 15px 16px;
+  box-shadow: 0 2px 8px rgba(24, 38, 56, 0.04);
+}
+
+.ai-prompt-result-title {
+  margin: 0 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e3eaf2;
+  color: #1677d2;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.ai-prompt-result-body {
+  margin: 0;
+}
+
+.ai-prompt-result-body .ai-result-sections {
+  gap: 0;
+}
+
+.ai-prompt-result-body .ai-result-card {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+
+.ai-prompt-result-body .ai-result-title {
+  display: none;
+}
+
+.ai-prompt-result-body .ai-result-content {
+  font-size: 12px;
+}
+
 .ai-prompt-box {
   display: flex;
   gap: 8px;
@@ -798,6 +843,16 @@ button { cursor: pointer; }
   .ai-result-bullet {
     gap: 7px;
     margin-bottom: 7px;
+  }
+
+  .ai-prompt-result {
+    padding: 13px 14px;
+  }
+
+  .ai-prompt-result-title {
+    margin-bottom: 10px;
+    padding-bottom: 9px;
+    font-size: 12px;
   }
 
   .ai-prompt-box {

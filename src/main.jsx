@@ -1591,7 +1591,17 @@ const chargebackLifecycleData = useMemo(
               <Kpi label="3DS Approval Rate by Count" value={rate(threeDSApprovalRateByCount)} sub="3DS transactions" />
               <Kpi label="Tokenized Approval Rate by Count" value={rate(tokenizedApprovalRateByCount)} sub="tokenized transactions" />
             </div>
-) : (            <div className="kpi-grid">
+) : section === "decline" ? (
+            <div className="kpi-grid">
+              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+              <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
+              <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
+              <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
+              <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
+              <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
+            </div>
+          ) : (
+            <div className="kpi-grid">
               <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
               <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
               <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
@@ -2101,11 +2111,6 @@ const chargebackLifecycleData = useMemo(
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
               >
-                <div className="kpi-grid compact" style={{ marginBottom: "16px" }}>
-                  <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
-                  <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
-                  <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
-                </div>
 
                 {/* ROW 1 — DECLINE REASONS + MONTHLY DECLINE TREND */}
                 <div className="chart-grid two">

@@ -711,12 +711,32 @@ function authenticationMonthly(rows) {
     map.set(month, x);
   });
 
-  return [...map.values()]
+  const data = [...map.values()]
     .sort((a, b) => String(a.month).localeCompare(String(b.month)))
     .map((x) => ({
       ...x,
       successRate: pct(x.success, x.volume),
     }));
+
+  if (!data.length) return data;
+
+  const minVolume = Math.min(...data.map((x) => x.volume));
+  const maxVolume = Math.max(...data.map((x) => x.volume));
+  const minRate = Math.min(...data.map((x) => x.successRate));
+  const maxRate = Math.max(...data.map((x) => x.successRate));
+
+  const volumeRange = Math.max(maxVolume - minVolume, 1);
+  const rateRange = Math.max(maxRate - minRate, 0.01);
+
+  return data.map((x) => ({
+    ...x,
+    // Visual position only: keeps the rate line dynamically centered
+    // on the volume axis while preserving the actual rate for the tooltip.
+    successRateVisual:
+      minVolume +
+      volumeRange *
+        (0.25 + 0.5 * ((x.successRate - minRate) / rateRange)),
+  }));
 }
 
 function authenticationMix(rows) {
@@ -830,7 +850,7 @@ function AuthFilterBar({ filters, options, setFilters }) {
     ["issuer_name", "Issuer Name"],
     ["issuer_country", "Issuer Country"],
     ["acquirer_name", "Acquirer Name"],
-    ["BIN", "BIN"],
+    ["BIN", "MC-VISA"],
   ];
 
   const [open, setOpen] = useState(null);
@@ -3097,37 +3117,37 @@ const chargebackLifecycleData = useMemo(
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
                         <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                         <YAxis
-                          yAxisId="volume"
+                          domain={([dataMin, dataMax]) => {
+                            const range = dataMax - dataMin;
+                            const padding = Math.max(range * 0.25, 1);
+                            return [
+                              Math.max(0, dataMin - padding),
+                              dataMax + padding,
+                            ];
+                          }}
                           tick={{ fontSize: 11 }}
                           tickFormatter={(value) => number(value)}
                         />
-                        <YAxis
-                          yAxisId="rate"
-                          orientation="right"
-                          domain={[0, 100]}
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(value) => `${value}%`}
-                        />
                         <Tooltip
-                          formatter={(value, name) => {
+                          formatter={(value, name, props) => {
                             if (name === "Success Rate") {
-                              return [`${Number(value).toFixed(1)}%`, name];
+                              return [
+                                `${Number(props?.payload?.successRate || 0).toFixed(1)}%`,
+                                name,
+                              ];
                             }
                             return [number(value), "Authentication Volume"];
                           }}
                         />
-                        <Legend />
                         <Bar
-                          yAxisId="volume"
                           dataKey="volume"
                           name="Authentication Volume"
                           fill="#46b5ff"
                           radius={[6, 6, 0, 0]}
                         />
                         <Line
-                          yAxisId="rate"
                           type="monotone"
-                          dataKey="successRate"
+                          dataKey="successRateVisual"
                           name="Success Rate"
                           stroke="#66d4a6"
                           strokeWidth={3}
@@ -3174,7 +3194,6 @@ const chargebackLifecycleData = useMemo(
                             name,
                           ]}
                         />
-                        <Legend />
                       </PieChart>
                     </ResponsiveContainer>
                   </ChartCard>

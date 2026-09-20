@@ -362,6 +362,97 @@ function ticketDeclineMix(rows) {
   });
 }
 
+
+function declineMonthlyTrend(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const month = String(r.year_month ?? "").trim() || "NA";
+
+    if (!map.has(month)) {
+      map.set(month, {
+        month,
+        declined: 0,
+        declineAmount: 0,
+        total: 0,
+      });
+    }
+
+    const x = map.get(month);
+
+    x.declined += n(r["decline count"]);
+    x.declineAmount += n(r["decline amount"]);
+    x.total += n(r["approved count"]) + n(r["decline count"]);
+  });
+
+  return [...map.values()]
+    .sort((a, b) => String(a.month).localeCompare(String(b.month)))
+    .map((x) => ({
+      ...x,
+      declineRate: pct(x.declined, x.total),
+    }));
+}
+
+
+function declineReasonMixByDimension(rows, key, limit = null) {
+  const dimensionMap = new Map();
+
+  rows.forEach((r) => {
+    const dimension = String(r[key] ?? "").trim();
+
+    if (!dimension) return;
+
+    const reason = String(r.response_description ?? "").trim() || "NA";
+    const count = n(r["decline count"]);
+
+    if (!dimensionMap.has(dimension)) {
+      dimensionMap.set(dimension, new Map());
+    }
+
+    const reasonMap = dimensionMap.get(dimension);
+    reasonMap.set(reason, (reasonMap.get(reason) || 0) + count);
+  });
+
+  let dimensions = [...dimensionMap.entries()]
+    .map(([dimension, reasonMap]) => ({
+      dimension,
+      total: [...reasonMap.values()].reduce((sum, value) => sum + value, 0),
+      reasonMap,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  if (limit) {
+    dimensions = dimensions.slice(0, limit);
+  }
+
+  return dimensions.map(({ dimension, reasonMap }) => {
+    const sorted = [...reasonMap.entries()]
+      .sort((a, b) => b[1] - a[1]);
+
+    const top4 = sorted.slice(0, 4);
+    const others = sorted
+      .slice(4)
+      .reduce((sum, [, value]) => sum + value, 0);
+
+    const total = sorted.reduce((sum, [, value]) => sum + value, 0);
+
+    const row = {
+      dimension,
+      total,
+    };
+
+    top4.forEach(([reason, value], index) => {
+      row[`reason_${index}`] = total ? (value / total) * 100 : 0;
+      row[`reason_${index}_name`] = reason;
+    });
+
+    row.reason_others = total ? (others / total) * 100 : 0;
+    row.reason_others_name = "Others";
+
+    return row;
+  });
+}
+
 function renderAIResult(text) {
   if (!text) return null;
 
@@ -596,6 +687,26 @@ const topMCCs = useMemo(
   
 const ticketDeclineData = useMemo(
   () => ticketDeclineMix(filteredRows),
+  [filteredRows]
+);
+
+  const declineMonthlyData = useMemo(
+  () => declineMonthlyTrend(filteredRows),
+  [filteredRows]
+);
+
+const declineMonthMixData = useMemo(
+  () => declineReasonMixByDimension(filteredRows, "year_month"),
+  [filteredRows]
+);
+
+const declineMerchantMixData = useMemo(
+  () => declineReasonMixByDimension(filteredRows, "merchant_name", 10),
+  [filteredRows]
+);
+
+const declineMCCMixData = useMemo(
+  () => declineReasonMixByDimension(filteredRows, "mcc", 10),
   [filteredRows]
 );
 
@@ -1326,31 +1437,171 @@ const ticketDeclineData = useMemo(
               </motion.div>
             )}
 
-            {section === "decline" && (
-              <motion.div key="decline" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+           {section === "decline" && (
+              <motion.div
+                key="decline"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
                 <div className="kpi-grid compact">
-                  <Kpi label="Declined Transactions" value={number(kpi.declined)} sub="transactions" />
-                  <Kpi label="Declined Value" value={money(kpi.declinedAmt)} sub="declined amount" />
-                  <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub="of authorization volume" />
+                  <Kpi
+                    label="Declined Transactions"
+                    value={number(kpi.declined)}
+                    sub="transactions"
+                  />
+                  <Kpi
+                    label="Declined Value"
+                    value={money(kpi.declinedAmt)}
+                    sub="declined amount"
+                  />
+                  <Kpi
+                    label="Decline Rate"
+                    value={rate(kpi.declineRate)}
+                    sub="of authorization volume"
+                  />
                 </div>
+            
+                {/* ROW 1 — DECLINE REASONS + MONTHLY DECLINE TREND */}
                 <div className="chart-grid two">
-                  <ChartCard title="Decline reason distribution" subtitle="Top response descriptions">
-                    <SimpleBars data={declineReasons} />
+                  <ChartCard
+                    title="Decline Reason Distribution"
+                    subtitle="Top response descriptions"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {declineReasons.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {x.name}
+                          </span>
+            
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                              }}
+                            >
+                              {number(x.value)}
+                            </strong>
+            
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {pct(x.value, kpi.declined).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </ChartCard>
-                  <ChartCard title="Decline rate by channel" subtitle="Channel-level decline exposure">
+            
+                  <ChartCard
+                    title="Monthly Decline Trend"
+                    subtitle="Decline amount with decline rate"
+                  >
                     <ResponsiveContainer width="100%" height={320}>
-                      <BarChart data={channelRates.map((x) => ({ ...x, decline: 100 - x.approval }))}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                        <Tooltip formatter={(v) => `${Number(v).toFixed(1)}%`} />
-                        <Bar dataKey="decline" name="Decline Rate" fill="#ff6b87" radius={[6, 6, 0, 0]} />
-                      </BarChart>
+                      <ComposedChart
+                        data={declineMonthlyData}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="month"
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <YAxis
+                          yAxisId="amount"
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={money}
+                        />
+            
+                        <YAxis
+                          yAxisId="rate"
+                          orientation="right"
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (name === "Decline Rate") {
+                              return [
+                                `${Number(value).toFixed(2)}%`,
+                                name,
+                              ];
+                            }
+            
+                            return [
+                              money(value),
+                              "Decline Amount",
+                            ];
+                          }}
+                        />
+            
+                        <Legend />
+            
+                        <Bar
+                          yAxisId="amount"
+                          dataKey="declineAmount"
+                          name="Decline Amount"
+                          fill="#46b5ff"
+                          radius={[6, 6, 0, 0]}
+                        />
+            
+                        <Line
+                          yAxisId="rate"
+                          type="monotone"
+                          dataKey="declineRate"
+                          name="Decline Rate"
+                          stroke="#ff6b87"
+                          strokeWidth={3}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>
-
-                <div style={{ marginTop: "16px" }}>
+            
+            
+                {/* ROW 2 — TICKET SIZE + MONTHLY DECLINE MIX */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
                   <ChartCard
                     title="Decline Reason Mix by Ticket Size"
                     subtitle="Top 4 decline reasons within each ticket size band"
@@ -1360,39 +1611,274 @@ const ticketDeclineData = useMemo(
                         data={ticketDeclineData}
                         margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
                         <XAxis
                           dataKey="ticket"
                           tick={{ fontSize: 11 }}
                         />
-                  
+            
                         <YAxis
                           domain={[0, 100]}
                           tickFormatter={(value) => `${value}%`}
                           tick={{ fontSize: 11 }}
                         />
-                  
+            
                         <Tooltip
                           formatter={(value, name, props) => {
                             const reasonName =
                               props?.payload?.[`${name}_name`] || name;
-                  
-                            return [`${Number(value).toFixed(1)}%`, reasonName];
+            
+                            return [
+                              `${Number(value).toFixed(1)}%`,
+                              reasonName,
+                            ];
                           }}
                         />
-                  
-                        <Bar dataKey="reason_0" stackId="declines" fill="#46b5ff" />
-                        <Bar dataKey="reason_1" stackId="declines" fill="#66d4a6" />
-                        <Bar dataKey="reason_2" stackId="declines" fill="#ffb86b" />
-                        <Bar dataKey="reason_3" stackId="declines" fill="#ff6b87" />
-                        <Bar dataKey="reason_others" stackId="declines" fill="#8b7cf6" />
+            
+                        <Bar
+                          dataKey="reason_0"
+                          stackId="declines"
+                          fill="#46b5ff"
+                        />
+                        <Bar
+                          dataKey="reason_1"
+                          stackId="declines"
+                          fill="#66d4a6"
+                        />
+                        <Bar
+                          dataKey="reason_2"
+                          stackId="declines"
+                          fill="#ffb86b"
+                        />
+                        <Bar
+                          dataKey="reason_3"
+                          stackId="declines"
+                          fill="#ff6b87"
+                        />
+                        <Bar
+                          dataKey="reason_others"
+                          stackId="declines"
+                          fill="#8b7cf6"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+            
+                  <ChartCard
+                    title="Decline Reason Mix by Month"
+                    subtitle="Top 4 decline reasons within each month"
+                  >
+                    <ResponsiveContainer width="100%" height={360}>
+                      <BarChart
+                        data={declineMonthMixData}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                        barCategoryGap="35%"
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="dimension"
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <YAxis
+                          domain={[0, 100]}
+                          tickFormatter={(value) => `${value}%`}
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name, props) => {
+                            const reasonName =
+                              props?.payload?.[`${name}_name`] || name;
+            
+                            return [
+                              `${Number(value).toFixed(1)}%`,
+                              reasonName,
+                            ];
+                          }}
+                        />
+            
+                        <Bar
+                          dataKey="reason_0"
+                          stackId="declines"
+                          fill="#46b5ff"
+                        />
+                        <Bar
+                          dataKey="reason_1"
+                          stackId="declines"
+                          fill="#66d4a6"
+                        />
+                        <Bar
+                          dataKey="reason_2"
+                          stackId="declines"
+                          fill="#ffb86b"
+                        />
+                        <Bar
+                          dataKey="reason_3"
+                          stackId="declines"
+                          fill="#ff6b87"
+                        />
+                        <Bar
+                          dataKey="reason_others"
+                          stackId="declines"
+                          fill="#8b7cf6"
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>
-
-                
+            
+            
+                {/* ROW 3 — MERCHANT + MCC DECLINE MIX */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Decline Reason Mix by Merchant"
+                    subtitle="Top 10 merchants by declined transaction count"
+                  >
+                    <ResponsiveContainer width="100%" height={380}>
+                      <BarChart
+                        data={declineMerchantMixData}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 60 }}
+                        barCategoryGap="35%"
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="dimension"
+                          tick={{ fontSize: 10 }}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+            
+                        <YAxis
+                          domain={[0, 100]}
+                          tickFormatter={(value) => `${value}%`}
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name, props) => {
+                            const reasonName =
+                              props?.payload?.[`${name}_name`] || name;
+            
+                            return [
+                              `${Number(value).toFixed(1)}%`,
+                              reasonName,
+                            ];
+                          }}
+                        />
+            
+                        <Bar
+                          dataKey="reason_0"
+                          stackId="declines"
+                          fill="#46b5ff"
+                        />
+                        <Bar
+                          dataKey="reason_1"
+                          stackId="declines"
+                          fill="#66d4a6"
+                        />
+                        <Bar
+                          dataKey="reason_2"
+                          stackId="declines"
+                          fill="#ffb86b"
+                        />
+                        <Bar
+                          dataKey="reason_3"
+                          stackId="declines"
+                          fill="#ff6b87"
+                        />
+                        <Bar
+                          dataKey="reason_others"
+                          stackId="declines"
+                          fill="#8b7cf6"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+            
+                  <ChartCard
+                    title="Decline Reason Mix by MCC"
+                    subtitle="Top 10 MCCs by declined transaction count"
+                  >
+                    <ResponsiveContainer width="100%" height={380}>
+                      <BarChart
+                        data={declineMCCMixData}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 60 }}
+                        barCategoryGap="35%"
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="dimension"
+                          tick={{ fontSize: 10 }}
+                          angle={-30}
+                          textAnchor="end"
+                          interval={0}
+                        />
+            
+                        <YAxis
+                          domain={[0, 100]}
+                          tickFormatter={(value) => `${value}%`}
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name, props) => {
+                            const reasonName =
+                              props?.payload?.[`${name}_name`] || name;
+            
+                            return [
+                              `${Number(value).toFixed(1)}%`,
+                              reasonName,
+                            ];
+                          }}
+                        />
+            
+                        <Bar
+                          dataKey="reason_0"
+                          stackId="declines"
+                          fill="#46b5ff"
+                        />
+                        <Bar
+                          dataKey="reason_1"
+                          stackId="declines"
+                          fill="#66d4a6"
+                        />
+                        <Bar
+                          dataKey="reason_2"
+                          stackId="declines"
+                          fill="#ffb86b"
+                        />
+                        <Bar
+                          dataKey="reason_3"
+                          stackId="declines"
+                          fill="#ff6b87"
+                        />
+                        <Bar
+                          dataKey="reason_others"
+                          stackId="declines"
+                          fill="#8b7cf6"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
               </motion.div>
             )}
 

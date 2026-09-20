@@ -1823,7 +1823,7 @@ const chargebackLifecycleData = useMemo(
           </div>
         </div>
 
-        <div className="side-label">GLOBAL FILTERS</div>
+        <div className="side-label">AUTHORIZATION FILTERS</div>
         <div className="filter-groups">
           {FILTER_GROUPS.map((group) => (
             <FilterGroup

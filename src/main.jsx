@@ -1820,6 +1820,12 @@ const chargebackLifecycleData = useMemo(
           <img
             src={paymentsLifecycleLogo}
             alt="Payments Lifecycle Dashboard"
+            style={{
+                width: "38px",
+                height: "38px",
+                objectFit: "contain",
+                display: "block",
+            }}
           />
           <div>
             <div className="brand-name">Payments Lifecycle</div>

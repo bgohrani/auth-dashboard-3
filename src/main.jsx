@@ -1847,7 +1847,7 @@ const chargebackLifecycleData = useMemo(
         <header className="topbar">
           <div>
             <div className="eyebrow">PAYMENTS ANALYTICS</div>
-            <h1>Authorization Intelligence</h1>
+            <h1>Authentication-Authorization Intelligence</h1>
           </div>
           <div className="top-actions">
             <div className="scope-pill">

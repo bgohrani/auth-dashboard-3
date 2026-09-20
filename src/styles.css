@@ -924,3 +924,5 @@ button { cursor: pointer; }
     gap: 5px;
   }
 }
+/* Pie charts use Recharts percentage radii; do not scale them with CSS. */
+.responsive-pie-chart { transform: none !important; }

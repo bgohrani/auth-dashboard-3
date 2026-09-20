@@ -1897,17 +1897,6 @@ const chargebackLifecycleData = useMemo(
           <span className="live-dot" />
           <span>Live Data from Vercel Blob</span>
         </div>
-        <div
-          style={{
-            marginTop: "auto",
-            padding: "16px 12px",
-            fontSize: "12px",
-            color: "#718096",
-            textAlign: "center",
-          }}
-        >
-          © Developed by Bharath Gohrani
-        </div>
       </aside>
 
       <main className="main">
@@ -2043,15 +2032,15 @@ const chargebackLifecycleData = useMemo(
                   </ChartCard>
                   <ChartCard title="Approved volume by channel" subtitle="Transaction mix across channels">
                     <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
+                      <PieChart className="responsive-pie-chart">
                         <Pie
                           data={channelMix}
                           dataKey="approved"
                           nameKey="name"
                           cx="50%"
                           cy="50%"
-                          outerRadius={105}
-                          innerRadius={55}
+                          outerRadius="35%"
+                          innerRadius="18%"
                           paddingAngle={2}
                           label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                         >
@@ -3158,6 +3147,7 @@ const chargebackLifecycleData = useMemo(
             
                 {/* ROW 1 — FRAUD REASONS + CHARGEBACK REASONS + LIFECYCLE PIE */}
                 <div
+                  className="risk-reasons-row"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -3295,15 +3285,15 @@ const chargebackLifecycleData = useMemo(
                     subtitle="% of total chargeback count"
                   >
                     <ResponsiveContainer width="100%" height={300}>
-                      <PieChart>
+                      <PieChart className="responsive-pie-chart">
                         <Pie
                           data={chargebackLifecycleData}
                           dataKey="count"
                           nameKey="name"
                           cx="50%"
                           cy="46%"
-                          outerRadius={92}
-                          innerRadius={48}
+                          outerRadius="31%"
+                          innerRadius="16%"
                           paddingAngle={2}
                         >
                           {chargebackLifecycleData.map((entry, index) => (
@@ -3657,15 +3647,15 @@ const chargebackLifecycleData = useMemo(
                     subtitle="% share of authentication transactions"
                   >
                     <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
+                      <PieChart className="responsive-pie-chart">
                         <Pie
                           data={authenticationModeMix}
                           dataKey="value"
                           nameKey="name"
                           cx="50%"
                           cy="48%"
-                          outerRadius={100}
-                          innerRadius={55}
+                          outerRadius="31%"
+                          innerRadius="17%"
                           paddingAngle={2}
                           label={({ name, percent }) =>
                             `${name} ${(percent * 100).toFixed(1)}%`
@@ -4204,15 +4194,15 @@ function PerformancePie({ title, subtitle, data }) {
   return (
     <ChartCard title={title} subtitle={subtitle}>
       <ResponsiveContainer width="100%" height={260}>
-        <PieChart>
+        <PieChart className="responsive-pie-chart">
           <Pie
             data={data}
             dataKey="totalCount"
             nameKey="name"
             cx="50%"
             cy="48%"
-            outerRadius={78}
-            innerRadius={38}
+            outerRadius="30%"
+            innerRadius="15%"
             paddingAngle={2}
           >
             {data.map((entry, index) => (

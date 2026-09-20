@@ -54,15 +54,10 @@ const MODEL_OPTIONS = [
   label: "Llama 3.3 70B · Hugging Face",
   },
   {
-    provider: "cloudflare",
-    model: "@cf/nvidia/nemotron-3-120b-a12b",
-    label: "Nemotron 3 120B · Cloudflare",
-  },
-  {
-    provider: "mistral",
-    model: "mistral-small-latest",
-    label: "Mistral Small · Free",
-  },
+  provider: "huggingface",
+  model: "deepseek-ai/DeepSeek-V3-0324",
+  label: "DeepSeek V3 · Hugging Face",
+}
 ];
 
 const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map(([key]) => [key, []]));

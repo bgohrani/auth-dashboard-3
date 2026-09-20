@@ -1816,7 +1816,10 @@ const chargebackLifecycleData = useMemo(
     <div className="app">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">A</div>
+          <img
+            src="/payments-lifecycle-logo.png"
+            alt="Payments Lifecycle Dashboard"
+          />
           <div>
             <div className="brand-name">Payments Lifecycle</div>
             <div className="brand-sub">DASHBOARD</div>

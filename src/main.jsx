@@ -1253,12 +1253,38 @@ function App() {
 
   const channelMix = useMemo(
     () =>
-      groupBy(filteredRows, "channel").map((x) => ({
-        ...x,
-        approved: filteredRows
-          .filter((r) => (r.channel || "Unknown") === x.name)
-          .reduce((s, r) => s + n(r["approved count"]), 0),
-      })),
+      groupBy(filteredRows, "channel").map((x) => {
+        const channelRows = filteredRows.filter(
+          (r) => (r.channel || "Unknown") === x.name
+        );
+
+        const approved = channelRows.reduce(
+          (s, r) => s + n(r["approved count"]),
+          0
+        );
+        const declined = channelRows.reduce(
+          (s, r) => s + n(r["decline count"]),
+          0
+        );
+        const approvedAmt = channelRows.reduce(
+          (s, r) => s + n(r["approved amt"]),
+          0
+        );
+        const declinedAmt = channelRows.reduce(
+          (s, r) => s + n(r["decline amount"]),
+          0
+        );
+
+        return {
+          ...x,
+          approved,
+          approvalRateByCount: pct(approved, approved + declined),
+          approvalRateByAmount: pct(
+            approvedAmt,
+            approvedAmt + declinedAmt
+          ),
+        };
+      }),
     [filteredRows]
   );
 
@@ -1709,7 +1735,47 @@ const chargebackLifecycleData = useMemo(
                             />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v) => number(v)} />
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+
+                            const data = payload[0]?.payload;
+                            if (!data) return null;
+
+                            return (
+                              <div
+                                style={{
+                                  background: "#ffffff",
+                                  border: "1px solid #e3eaf2",
+                                  borderRadius: "8px",
+                                  padding: "10px 12px",
+                                  boxShadow: "0 4px 14px rgba(24, 38, 56, 0.10)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    marginBottom: "6px",
+                                    color: "#182638",
+                                  }}
+                                >
+                                  {data.name}
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Approved Volume: {number(data.approved)}
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Approval Rate by Amount:{" "}
+                                  {Number(data.approvalRateByAmount || 0).toFixed(1)}%
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Approval Rate by Count:{" "}
+                                  {Number(data.approvalRateByCount || 0).toFixed(1)}%
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
@@ -1751,10 +1817,48 @@ const chargebackLifecycleData = useMemo(
                               <>
                                 <div
                                   className="mix-segment visa"
+                                  title={`Visa — Approval Rate by Amount: ${pct(
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("4"))
+                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("4"))
+                                      .reduce(
+                                        (s, r) =>
+                                          s +
+                                          n(r["approved amt"]) +
+                                          n(r["decline amount"]),
+                                        0
+                                      )
+                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("4"))
+                                      .reduce((s, r) => s + n(r["approved count"]), 0),
+                                    visa
+                                  ).toFixed(1)}%`}
                                   style={{ width: `${visaPct}%` }}
                                 />
                                 <div
                                   className="mix-segment mastercard"
+                                  title={`Mastercard — Approval Rate by Amount: ${pct(
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("5"))
+                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("5"))
+                                      .reduce(
+                                        (s, r) =>
+                                          s +
+                                          n(r["approved amt"]) +
+                                          n(r["decline amount"]),
+                                        0
+                                      )
+                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
+                                    filteredRows
+                                      .filter((r) => String(r.bin || "").startsWith("5"))
+                                      .reduce((s, r) => s + n(r["approved count"]), 0),
+                                    mastercard
+                                  ).toFixed(1)}%`}
                                   style={{ width: `${mcPct}%` }}
                                 />
                               </>
@@ -1807,14 +1911,89 @@ const chargebackLifecycleData = useMemo(
                               <>
                                 <div
                                   className="mix-segment credit"
+                                  title={`Credit — Approval Rate by Amount: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("credit")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("credit")
+                                      )
+                                      .reduce(
+                                        (s, r) =>
+                                          s +
+                                          n(r["approved amt"]) +
+                                          n(r["decline amount"]),
+                                        0
+                                      )
+                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("credit")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved count"]), 0),
+                                    credit
+                                  ).toFixed(1)}%`}
                                   style={{ width: `${pct(credit, total)}%` }}
                                 />
                                 <div
                                   className="mix-segment debit"
+                                  title={`Debit — Approval Rate by Amount: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("debit")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("debit")
+                                      )
+                                      .reduce(
+                                        (s, r) =>
+                                          s +
+                                          n(r["approved amt"]) +
+                                          n(r["decline amount"]),
+                                        0
+                                      )
+                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("debit")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved count"]), 0),
+                                    debit
+                                  ).toFixed(1)}%`}
                                   style={{ width: `${pct(debit, total)}%` }}
                                 />
                                 <div
                                   className="mix-segment prepaid"
+                                  title={`Prepaid — Approval Rate by Amount: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("prepaid")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved amt"]), 0),
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("prepaid")
+                                      )
+                                      .reduce(
+                                        (s, r) =>
+                                          s +
+                                          n(r["approved amt"]) +
+                                          n(r["decline amount"]),
+                                        0
+                                      )
+                                  ).toFixed(1)}% | Approval Rate by Count: ${pct(
+                                    filteredRows
+                                      .filter((r) =>
+                                        String(r["prod type"]).toLowerCase().includes("prepaid")
+                                      )
+                                      .reduce((s, r) => s + n(r["approved count"]), 0),
+                                    prepaid
+                                  ).toFixed(1)}%`}
                                   style={{ width: `${pct(prepaid, total)}%` }}
                                 />
                               </>

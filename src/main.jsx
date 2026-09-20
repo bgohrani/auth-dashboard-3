@@ -476,6 +476,152 @@ function declineReasonMixByDimension(rows, key, limit = null) {
   });
 }
 
+function fraudMonthlyTrend(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const month = String(r.year_month ?? "").trim() || "NA";
+
+    if (!map.has(month)) {
+      map.set(month, {
+        month,
+        fraud: 0,
+        approved: 0,
+      });
+    }
+
+    const x = map.get(month);
+
+    x.fraud += n(r["fraud count"]);
+    x.approved += n(r["approved count"]);
+  });
+
+  const data = [...map.values()]
+    .sort((a, b) => String(a.month).localeCompare(String(b.month)))
+    .map((x) => ({
+      ...x,
+      fraudRateBps: x.approved ? (x.fraud / x.approved) * 10000 : 0,
+    }));
+
+  if (!data.length) return data;
+
+  const minVolume = Math.min(...data.map((x) => x.fraud));
+  const maxVolume = Math.max(...data.map((x) => x.fraud));
+
+  const minRate = Math.min(...data.map((x) => x.fraudRateBps));
+  const maxRate = Math.max(...data.map((x) => x.fraudRateBps));
+
+  const volumeRange = Math.max(maxVolume - minVolume, 1);
+  const rateRange = Math.max(maxRate - minRate, 0.01);
+
+  return data.map((x) => ({
+    ...x,
+    fraudRateVisual:
+      minVolume +
+      volumeRange *
+        (0.25 +
+          0.5 * ((x.fraudRateBps - minRate) / rateRange)),
+  }));
+}
+
+
+function chargebackMonthlyTrend(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const month = String(r.year_month ?? "").trim() || "NA";
+
+    if (!map.has(month)) {
+      map.set(month, {
+        month,
+        chargebacks: 0,
+        approved: 0,
+      });
+    }
+
+    const x = map.get(month);
+
+    x.chargebacks += n(r["chargeback count"]);
+    x.approved += n(r["approved count"]);
+  });
+
+  const data = [...map.values()]
+    .sort((a, b) => String(a.month).localeCompare(String(b.month)))
+    .map((x) => ({
+      ...x,
+      chargebackRateBps: x.approved
+        ? (x.chargebacks / x.approved) * 10000
+        : 0,
+    }));
+
+  if (!data.length) return data;
+
+  const minVolume = Math.min(...data.map((x) => x.chargebacks));
+  const maxVolume = Math.max(...data.map((x) => x.chargebacks));
+
+  const minRate = Math.min(...data.map((x) => x.chargebackRateBps));
+  const maxRate = Math.max(...data.map((x) => x.chargebackRateBps));
+
+  const volumeRange = Math.max(maxVolume - minVolume, 1);
+  const rateRange = Math.max(maxRate - minRate, 0.01);
+
+  return data.map((x) => ({
+    ...x,
+    chargebackRateVisual:
+      minVolume +
+      volumeRange *
+        (0.25 +
+          0.5 * ((x.chargebackRateBps - minRate) / rateRange)),
+  }));
+}
+
+
+function chargebackLifecycleMix(rows) {
+  let totalChargebacks = 0;
+  let firstAmount = 0;
+  let secondAmount = 0;
+  let arbitrationAmount = 0;
+
+  rows.forEach((r) => {
+    totalChargebacks += n(r["chargeback count"]);
+    firstAmount += n(r["first presentment amt"]);
+    secondAmount += n(r["second presentment amt"]);
+    arbitrationAmount += n(r["arbitration amt"]);
+  });
+
+  const totalLifecycleAmount =
+    firstAmount + secondAmount + arbitrationAmount;
+
+  const categories = [
+    {
+      name: "First Presentment",
+      amount: firstAmount,
+    },
+    {
+      name: "Second Presentment",
+      amount: secondAmount,
+    },
+    {
+      name: "Arbitration",
+      amount: arbitrationAmount,
+    },
+  ];
+
+  return categories.map((x) => ({
+    ...x,
+    count:
+      totalLifecycleAmount > 0
+        ? totalChargebacks * (x.amount / totalLifecycleAmount)
+        : 0,
+    share:
+      totalChargebacks > 0
+        ? (totalLifecycleAmount > 0
+            ? totalChargebacks * (x.amount / totalLifecycleAmount)
+            : 0) / totalChargebacks * 100
+        : 0,
+  }));
+}
+
 function renderAIResult(text) {
   if (!text) return null;
 
@@ -733,6 +879,20 @@ const declineMCCMixData = useMemo(
   [filteredRows]
 );
 
+const fraudMonthlyData = useMemo(
+  () => fraudMonthlyTrend(filteredRows),
+  [filteredRows]
+);
+
+const chargebackMonthlyData = useMemo(
+  () => chargebackMonthlyTrend(filteredRows),
+  [filteredRows]
+);
+
+const chargebackLifecycleData = useMemo(
+  () => chargebackLifecycleMix(filteredRows),
+  [filteredRows]
+);  
   const aiContext = useMemo(() => ({
   analysisMode: aiMode,
 
@@ -1893,32 +2053,420 @@ const declineMCCMixData = useMemo(
             )}
 
             {section === "risk" && (
-              <motion.div key="risk" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+              <motion.div
+                key="risk"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                {/* KPI CARDS — unchanged */}
                 <div className="kpi-grid compact">
-                  <Kpi label="Fraud Transactions" value={number(kpi.fraud)} sub={`${rate(kpi.fraudRate)} of approved`} />
-                  <Kpi label="Fraud Exposure" value={money(kpi.fraudAmt)} sub="fraud amount" />
-                  <Kpi label="Chargebacks" value={number(kpi.cb)} sub={`${rate(kpi.cbRate)} of approved`} />
-                  <Kpi label="Chargeback Exposure" value={money(kpi.cbAmt)} sub="chargeback total" />
+                  <Kpi
+                    label="Fraud Transactions"
+                    value={number(kpi.fraud)}
+                    sub={`${rate(kpi.fraudRate)} of approved`}
+                  />
+                  <Kpi
+                    label="Fraud Exposure"
+                    value={money(kpi.fraudAmt)}
+                    sub="fraud amount"
+                  />
+                  <Kpi
+                    label="Chargebacks"
+                    value={number(kpi.cb)}
+                    sub={`${rate(kpi.cbRate)} of approved`}
+                  />
+                  <Kpi
+                    label="Chargeback Exposure"
+                    value={money(kpi.cbAmt)}
+                    sub="chargeback total"
+                  />
                 </div>
-                <div className="chart-grid two">
-                  <ChartCard title="Fraud reason distribution" subtitle="Fraud counts by reason">
-                    <SimpleBars data={fraudReasons} />
+            
+                {/* ROW 1 — FRAUD REASONS + CHARGEBACK REASONS + LIFECYCLE PIE */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                    gap: "14px",
+                    marginTop: "16px",
+                  }}
+                >
+                  {/* FRAUD REASON DISTRIBUTION */}
+                  <ChartCard
+                    title="Fraud Reason Distribution"
+                    subtitle="Top fraud reasons by count and % share"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {fraudReasons.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {x.name}
+                          </span>
+            
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                              }}
+                            >
+                              {number(x.value)}
+                            </strong>
+            
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {pct(x.value, kpi.fraud).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </ChartCard>
-                  <ChartCard title="Chargeback reason distribution" subtitle="Chargeback counts by reason">
-                    <SimpleBars data={cbReasons} />
+            
+                  {/* CHARGEBACK REASON DISTRIBUTION */}
+                  <ChartCard
+                    title="Chargeback Reason Distribution"
+                    subtitle="Top chargeback reasons by count and % share"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {cbReasons.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {x.name}
+                          </span>
+            
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                              }}
+                            >
+                              {number(x.value)}
+                            </strong>
+            
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {pct(x.value, kpi.cb).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartCard>
+            
+                  {/* CHARGEBACK LIFECYCLE PIE */}
+                  <ChartCard
+                    title="Chargeback Lifecycle Mix"
+                    subtitle="% of total chargeback count"
+                  >
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={chargebackLifecycleData}
+                          dataKey="count"
+                          nameKey="name"
+                          cx="50%"
+                          cy="46%"
+                          outerRadius={92}
+                          innerRadius={48}
+                          paddingAngle={2}
+                        >
+                          {chargebackLifecycleData.map((entry, index) => (
+                            <Cell
+                              key={`lifecycle-${index}`}
+                              fill={
+                                ["#46b5ff", "#66d4a6", "#ffb86b"][index]
+                              }
+                            />
+                          ))}
+                        </Pie>
+            
+                        <Tooltip
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+            
+                            const x = payload[0].payload;
+            
+                            return (
+                              <div
+                                style={{
+                                  background: "#ffffff",
+                                  border: "1px solid #e3eaf2",
+                                  borderRadius: "8px",
+                                  padding: "10px 12px",
+                                  boxShadow: "0 6px 18px rgba(24,38,56,.12)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 700,
+                                    marginBottom: "6px",
+                                    color: "#182638",
+                                  }}
+                                >
+                                  {x.name}
+                                </div>
+            
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#718096",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  Chargeback Count:{" "}
+                                  <strong style={{ color: "#182638" }}>
+                                    {number(x.count)}
+                                  </strong>
+                                </div>
+            
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#718096",
+                                    marginBottom: "4px",
+                                  }}
+                                >
+                                  Count Share:{" "}
+                                  <strong style={{ color: "#182638" }}>
+                                    {x.share.toFixed(1)}%
+                                  </strong>
+                                </div>
+            
+                                <div
+                                  style={{
+                                    fontSize: "11px",
+                                    color: "#718096",
+                                  }}
+                                >
+                                  Amount:{" "}
+                                  <strong style={{ color: "#182638" }}>
+                                    {money(x.amount)}
+                                  </strong>
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
+            
+                        <Legend
+                          wrapperStyle={{
+                            fontSize: "11px",
+                            lineHeight: "16px",
+                          }}
+                          iconSize={10}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </ChartCard>
                 </div>
-                <ChartCard title="Fraud rate by channel" subtitle="Fraud transactions as a percentage of approved transactions">
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={channelRates}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                      <Tooltip formatter={(v) => `${Number(v).toFixed(2)}%`} />
-                      <Bar dataKey="fraud" name="Fraud Rate" fill="#ffb86b" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </ChartCard>
+            
+                {/* ROW 2 — MONTHLY FRAUD + MONTHLY CHARGEBACK */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  {/* MONTHLY FRAUD */}
+                  <ChartCard
+                    title="Monthly Fraud Trend"
+                    subtitle="Fraud volume with fraud rate in BPS"
+                  >
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart
+                        data={fraudMonthlyData}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="month"
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <YAxis
+                          domain={["dataMin", "dataMax"]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => number(value)}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name, props) => {
+                            if (name === "Fraud Rate") {
+                              return [
+                                `${Number(
+                                  props.payload.fraudRateBps
+                                ).toFixed(2)} BPS`,
+                                name,
+                              ];
+                            }
+            
+                            return [
+                              number(value),
+                              "Fraud Volume",
+                            ];
+                          }}
+                        />
+            
+                        <Legend />
+            
+                        <Bar
+                          dataKey="fraud"
+                          name="Fraud Volume"
+                          fill="#ffb86b"
+                          radius={[6, 6, 0, 0]}
+                        />
+            
+                        <Line
+                          type="monotone"
+                          dataKey="fraudRateVisual"
+                          name="Fraud Rate"
+                          stroke="#ff6b87"
+                          strokeWidth={3}
+                          dot={{
+                            r: 5,
+                            fill: "#ff6b87",
+                            stroke: "#ffffff",
+                            strokeWidth: 2,
+                          }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+            
+                  {/* MONTHLY CHARGEBACK */}
+                  <ChartCard
+                    title="Monthly Chargeback Trend"
+                    subtitle="Chargeback volume with chargeback rate in BPS"
+                  >
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart
+                        data={chargebackMonthlyData}
+                        margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                        />
+            
+                        <XAxis
+                          dataKey="month"
+                          tick={{ fontSize: 11 }}
+                        />
+            
+                        <YAxis
+                          domain={["dataMin", "dataMax"]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => number(value)}
+                        />
+            
+                        <Tooltip
+                          formatter={(value, name, props) => {
+                            if (name === "Chargeback Rate") {
+                              return [
+                                `${Number(
+                                  props.payload.chargebackRateBps
+                                ).toFixed(2)} BPS`,
+                                name,
+                              ];
+                            }
+            
+                            return [
+                              number(value),
+                              "Chargeback Volume",
+                            ];
+                          }}
+                        />
+            
+                        <Legend />
+            
+                        <Bar
+                          dataKey="chargebacks"
+                          name="Chargeback Volume"
+                          fill="#46b5ff"
+                          radius={[6, 6, 0, 0]}
+                        />
+            
+                        <Line
+                          type="monotone"
+                          dataKey="chargebackRateVisual"
+                          name="Chargeback Rate"
+                          stroke="#ff6b87"
+                          strokeWidth={3}
+                          dot={{
+                            r: 5,
+                            fill: "#ff6b87",
+                            stroke: "#ffffff",
+                            strokeWidth: 2,
+                          }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

@@ -1866,7 +1866,7 @@ const chargebackLifecycleData = useMemo(
               <span>{number(section === "authentication" ? authenticationFilteredRows.length : filteredRows.length)}</span> rows in scope
             </div>
             <button className="ai-button" onClick={() => setAiOpen(true)}>
-              <span className="spark">✦</span> AI Insights
+              <span className="spark">✦</span> Use the AI Engine
             </button>
           </div>
         </header>

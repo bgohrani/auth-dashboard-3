@@ -780,16 +780,25 @@ function authenticationMix(rows) {
     if (!mode) return;
 
     const count = n(r["authentication_txn_count"]);
-    map.set(mode, (map.get(mode) || 0) + count);
+    const success =
+      String(r.authentication_result ?? "").trim() === "Authenticated"
+        ? count
+        : 0;
+
+    const current = map.get(mode) || { value: 0, success: 0 };
+    current.value += count;
+    current.success += success;
+    map.set(mode, current);
   });
 
-  const total = [...map.values()].reduce((sum, value) => sum + value, 0);
+  const total = [...map.values()].reduce((sum, x) => sum + x.value, 0);
 
   return [...map.entries()]
-    .map(([name, value]) => ({
+    .map(([name, x]) => ({
       name,
-      value,
-      share: pct(value, total),
+      value: x.value,
+      share: pct(x.value, total),
+      successRate: pct(x.success, x.value),
     }))
     .sort((a, b) => b.value - a.value);
 }
@@ -3206,10 +3215,44 @@ const chargebackLifecycleData = useMemo(
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value, name, props) => [
-                            `${Number(props?.payload?.share || 0).toFixed(1)}%`,
-                            name,
-                          ]}
+                          content={({ active, payload }) => {
+                            if (!active || !payload?.length) return null;
+
+                            const data = payload[0]?.payload;
+                            if (!data) return null;
+
+                            return (
+                              <div
+                                style={{
+                                  background: "#ffffff",
+                                  border: "1px solid #e3eaf2",
+                                  borderRadius: "8px",
+                                  padding: "10px 12px",
+                                  boxShadow: "0 4px 14px rgba(24, 38, 56, 0.10)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    marginBottom: "6px",
+                                    color: "#182638",
+                                  }}
+                                >
+                                  {data.name}
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Authentication Volume: {number(data.value)}
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Share: {Number(data.share || 0).toFixed(1)}%
+                                </div>
+                                <div style={{ color: "#718096" }}>
+                                  Authentication Success Rate:{" "}
+                                  {Number(data.successRate || 0).toFixed(1)}%
+                                </div>
+                              </div>
+                            );
+                          }}
                         />
                       </PieChart>
                     </ResponsiveContainer>

@@ -1506,6 +1506,7 @@ const ticketDeclineData = useMemo(
 
               <div className="ai-context">
                 <div className="context-title">CONTEXT</div>
+              
                 <div className="context-grid">
                   <span>Analysis</span>
                   <strong>
@@ -1513,15 +1514,40 @@ const ticketDeclineData = useMemo(
                       ? "Whole Dashboard"
                       : "Current Section"}
                   </strong>
-                
+              
                   <span>View</span>
                   <strong>{aiContext.view}</strong>
-                  <span>Rows</span><strong>{number(aiContext.rowsInScope)}</strong>
-                  <span>Approval</span><strong>{rate(kpi.approvalRate)}</strong>
-                  <span>Decline</span><strong>{rate(kpi.declineRate)}</strong>
-                  <span>Fraud</span><strong>{rate(kpi.fraudRate)}</strong>
-                  <span>Chargeback</span><strong>{rate(kpi.cbRate)}</strong>
+              
+                  <span>Rows</span>
+                  <strong>{number(aiContext.rowsInScope)}</strong>
+              
+                  <span>Approval</span>
+                  <strong>{rate(kpi.approvalRate)}</strong>
+              
+                  <span>Decline</span>
+                  <strong>{rate(kpi.declineRate)}</strong>
+              
+                  <span>Fraud</span>
+                  <strong>{rate(kpi.fraudRate)}</strong>
+              
+                  <span>Chargeback</span>
+                  <strong>{rate(kpi.cbRate)}</strong>
                 </div>
+              
+                {Object.keys(aiContext.filters || {}).length > 0 && (
+                  <div className="context-filters">
+                    <div className="context-filter-title">ACTIVE FILTERS</div>
+              
+                    <div className="context-filter-list">
+                      {Object.entries(aiContext.filters).map(([key, values]) => (
+                        <div className="context-filter-item" key={key}>
+                          <span>{key}</span>
+                          <strong>{values.join(", ")}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="ai-result">

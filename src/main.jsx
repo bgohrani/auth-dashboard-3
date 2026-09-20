@@ -476,6 +476,40 @@ function declineReasonMixByDimension(rows, key, limit = null) {
   });
 }
 
+function topDeclineAmountByDimension(rows, key, limit = 10) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const dimension = String(r[key] ?? "").trim();
+
+    if (!dimension) return;
+
+    const declineAmount = n(r["decline amount"]);
+
+    if (!map.has(dimension)) {
+      map.set(dimension, {
+        name: dimension,
+        declineAmount: 0,
+      });
+    }
+
+    map.get(dimension).declineAmount += declineAmount;
+  });
+
+  const totalDeclineAmount = [...map.values()].reduce(
+    (sum, x) => sum + x.declineAmount,
+    0
+  );
+
+  return [...map.values()]
+    .map((x) => ({
+      ...x,
+      share: pct(x.declineAmount, totalDeclineAmount),
+    }))
+    .sort((a, b) => b.declineAmount - a.declineAmount)
+    .slice(0, limit);
+}
+
 function fraudMonthlyTrend(rows) {
   const map = new Map();
 
@@ -879,6 +913,15 @@ const declineMCCMixData = useMemo(
   [filteredRows]
 );
 
+const topDeclineMerchants = useMemo(
+  () => topDeclineAmountByDimension(filteredRows, "merchant_name", 10),
+  [filteredRows]
+);
+
+const topDeclineMCCs = useMemo(
+  () => topDeclineAmountByDimension(filteredRows, "mcc", 10),
+  [filteredRows]
+);
 const fraudMonthlyData = useMemo(
   () => fraudMonthlyTrend(filteredRows),
   [filteredRows]
@@ -1765,7 +1808,139 @@ const chargebackLifecycleData = useMemo(
                     </ResponsiveContainer>
                   </ChartCard>
                 </div>
-            
+
+                {/* ROW 3 — TOP MERCHANTS + MCCs BY DECLINE AMOUNT */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Top Merchants by Decline Amount"
+                    subtitle="% share of total declined amount"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {topDeclineMerchants.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={x.name}
+                          >
+                            {x.name}
+                          </span>
+                
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                              }}
+                            >
+                              {money(x.declineAmount)}
+                            </strong>
+                
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {x.share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartCard>
+                
+                  <ChartCard
+                    title="Top MCCs by Decline Amount"
+                    subtitle="% share of total declined amount"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {topDeclineMCCs.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={x.name}
+                          >
+                            {x.name}
+                          </span>
+                
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                              }}
+                            >
+                              {money(x.declineAmount)}
+                            </strong>
+                
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {x.share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartCard>
+                </div>
             
                 {/* ROW 2 — TICKET SIZE + MONTHLY DECLINE MIX */}
                 <div className="chart-grid two" style={{ marginTop: "16px" }}>

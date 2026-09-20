@@ -1821,8 +1821,8 @@ const chargebackLifecycleData = useMemo(
             src={paymentsLifecycleLogo}
             alt="Payments Lifecycle Dashboard"
             style={{
-                width: "38px",
-                height: "38px",
+                width: "32px",
+                height: "32px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

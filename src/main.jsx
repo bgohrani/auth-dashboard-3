@@ -20,7 +20,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { GOOGLE_SHEET_CSV_URL, AI_API_URL } from "./dataSource";
+import { GOOGLE_SHEET_CSV_URL, AUTHENTICATION_DATA_URL, AI_API_URL } from "./dataSource";
 import "./styles.css";
 
 const SECTIONS = [
@@ -28,6 +28,7 @@ const SECTIONS = [
   ["performance", "Authorization Performance"],
   ["decline", "Decline Analysis"],
   ["risk", "Fraud & Chargebacks"],
+  ["authentication", "Authentication"],
 ];
 
 const FILTER_GROUPS = [
@@ -656,6 +657,282 @@ function chargebackLifecycleMix(rows) {
   }));
 }
 
+
+function authenticationMetrics(rows) {
+  let total = 0;
+  let success = 0;
+  let challengeTotal = 0;
+  let challengeSuccess = 0;
+  let frictionlessTotal = 0;
+  let frictionlessSuccess = 0;
+
+  rows.forEach((r) => {
+    const count = n(r["authentication_txn_count"]);
+    const result = String(r.authentication_result ?? "").trim();
+    const mode = String(r.challenge_frictionless_flag ?? "").trim();
+
+    total += count;
+
+    if (result === "Authenticated") {
+      success += count;
+    }
+
+    if (mode === "Challenge") {
+      challengeTotal += count;
+      if (result === "Authenticated") challengeSuccess += count;
+    }
+
+    if (mode === "Frictionless") {
+      frictionlessTotal += count;
+      if (result === "Authenticated") frictionlessSuccess += count;
+    }
+  });
+
+  return {
+    total,
+    success,
+    successRate: pct(success, total),
+    challengeSuccessRate: pct(challengeSuccess, challengeTotal),
+    frictionlessSuccessRate: pct(frictionlessSuccess, frictionlessTotal),
+  };
+}
+
+function authenticationMonthly(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const month = String(r.yearmonth ?? "").trim() || "NA";
+    const count = n(r["authentication_txn_count"]);
+    const result = String(r.authentication_result ?? "").trim();
+
+    const x = map.get(month) || { month, volume: 0, success: 0 };
+    x.volume += count;
+    if (result === "Authenticated") x.success += count;
+    map.set(month, x);
+  });
+
+  return [...map.values()]
+    .sort((a, b) => String(a.month).localeCompare(String(b.month)))
+    .map((x) => ({
+      ...x,
+      successRate: pct(x.success, x.volume),
+    }));
+}
+
+function authenticationMix(rows) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const mode = String(r.challenge_frictionless_flag ?? "").trim();
+    if (!mode) return;
+
+    const count = n(r["authentication_txn_count"]);
+    map.set(mode, (map.get(mode) || 0) + count);
+  });
+
+  const total = [...map.values()].reduce((sum, value) => sum + value, 0);
+
+  return [...map.entries()]
+    .map(([name, value]) => ({
+      name,
+      value,
+      share: pct(value, total),
+    }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function topAuthenticationFailures(rows, limit = 5) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const result = String(r.authentication_result ?? "").trim();
+    const reason = String(r.decline_reason ?? "").trim();
+
+    if (result !== "Not Authenticated" || !reason || reason === "Not applicable") {
+      return;
+    }
+
+    const count = n(r["authentication_txn_count"]);
+    map.set(reason, (map.get(reason) || 0) + count);
+  });
+
+  const total = [...map.values()].reduce((sum, value) => sum + value, 0);
+
+  return [...map.entries()]
+    .map(([name, value]) => ({
+      name,
+      value,
+      share: pct(value, total),
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit);
+}
+
+function topAuthenticationMandates(rows, limit = 5) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const mandate = String(r.challenge_mandate ?? "").trim();
+    if (!mandate) return;
+
+    const count = n(r["authentication_txn_count"]);
+    map.set(mandate, (map.get(mandate) || 0) + count);
+  });
+
+  const total = [...map.values()].reduce((sum, value) => sum + value, 0);
+
+  return [...map.entries()]
+    .map(([name, value]) => ({
+      name,
+      value,
+      share: pct(value, total),
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, limit);
+}
+
+function topAuthenticationDimension(rows, key, limit = 10) {
+  const map = new Map();
+
+  rows.forEach((r) => {
+    const name = String(r[key] ?? "").trim();
+    if (!name) return;
+
+    const count = n(r["authentication_txn_count"]);
+    const success =
+      String(r.authentication_result ?? "").trim() === "Authenticated"
+        ? count
+        : 0;
+
+    const current = map.get(name) || {
+      name,
+      count: 0,
+      success: 0,
+    };
+
+    current.count += count;
+    current.success += success;
+    map.set(name, current);
+  });
+
+  return [...map.values()]
+    .map((x) => ({
+      ...x,
+      successRate: pct(x.success, x.count),
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
+
+function AuthFilterBar({ filters, options, setFilters }) {
+  const fields = [
+    ["yearmonth", "Year Month"],
+    ["issuer_name", "Issuer Name"],
+    ["issuer_country", "Issuer Country"],
+    ["acquirer_name", "Acquirer Name"],
+    ["BIN", "BIN"],
+  ];
+
+  const [open, setOpen] = useState(null);
+
+  function toggleValue(key, value) {
+    setFilters((current) => {
+      const selected = current[key] || [];
+      const next = selected.includes(value)
+        ? selected.filter((x) => x !== value)
+        : [...selected, value];
+      return { ...current, [key]: next };
+    });
+  }
+
+  function clearField(key) {
+    setFilters((current) => ({ ...current, [key]: [] }));
+  }
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+        gap: "10px",
+        marginBottom: "16px",
+      }}
+    >
+      {fields.map(([key, label]) => {
+        const selected = filters[key] || [];
+        const values = options[key] || [];
+        const isOpen = open === key;
+        const summary =
+          selected.length === 0
+            ? "All"
+            : selected.length === 1
+              ? selected[0]
+              : `${selected.length} selected`;
+
+        return (
+          <div className="multi-filter" key={key} style={{ position: "relative" }}>
+            <button
+              type="button"
+              className={`multi-filter-trigger ${selected.length ? "has-selection" : ""}`}
+              onClick={() => setOpen(isOpen ? null : key)}
+              aria-expanded={isOpen}
+            >
+              <span className="multi-filter-label">{label}</span>
+              <span className="multi-filter-summary">{summary}</span>
+              <span className="multi-filter-chevron">⌄</span>
+            </button>
+
+            {isOpen && (
+              <>
+                <button
+                  type="button"
+                  className="filter-popover-backdrop"
+                  aria-label="Close filter"
+                  onClick={() => setOpen(null)}
+                />
+                <div className="filter-popover">
+                  <div className="filter-popover-head">
+                    <span>{label}</span>
+                    {selected.length > 0 && (
+                      <button type="button" onClick={() => clearField(key)}>
+                        Clear
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="filter-options">
+                    {values.map((value) => (
+                      <label className="filter-option" key={value}>
+                        <input
+                          type="checkbox"
+                          checked={selected.includes(String(value))}
+                          onChange={() => toggleValue(key, String(value))}
+                        />
+                        <span>{value}</span>
+                      </label>
+                    ))}
+                    {!values.length && (
+                      <div className="filter-empty">No values available</div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="filter-done"
+                    onClick={() => setOpen(null)}
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function renderAIResult(text) {
   if (!text) return null;
 
@@ -755,10 +1032,20 @@ function renderAIResult(text) {
 
 function App() {
   const [rows, setRows] = useState([]);
+  const [authenticationRows, setAuthenticationRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authenticationLoading, setAuthenticationLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [authenticationLoadError, setAuthenticationLoadError] = useState("");
   const [section, setSection] = useState("overview");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [authFilters, setAuthFilters] = useState({
+    yearmonth: [],
+    issuer_name: [],
+    issuer_country: [],
+    acquirer_name: [],
+    BIN: [],
+  });
   const [aiOpen, setAiOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODEL_OPTIONS[0]);
   const [aiMode, setAiMode] = useState("current_section");
@@ -778,8 +1065,24 @@ function App() {
         setLoading(false);
       },
       error: (err) => {
-        setLoadError(err?.message || "Unable to load Google Sheet.");
+        setLoadError(err?.message || "Unable to load authorization data.");
         setLoading(false);
+      },
+    });
+
+    Papa.parse(AUTHENTICATION_DATA_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        setAuthenticationRows((results.data || []).map(normalizeRow));
+        setAuthenticationLoading(false);
+      },
+      error: (err) => {
+        setAuthenticationLoadError(
+          err?.message || "Unable to load authentication data."
+        );
+        setAuthenticationLoading(false);
       },
     });
   }, []);
@@ -803,6 +1106,73 @@ function App() {
         })
       ),
     [rows, filters]
+  );
+
+
+  const authenticationOptions = useMemo(() => {
+    const out = {};
+    ["yearmonth", "issuer_name", "issuer_country", "acquirer_name", "BIN"].forEach(
+      (key) => {
+        out[key] = [
+          ...new Set(
+            authenticationRows.map((r) => r[key]).filter((value) => value !== undefined && value !== null && String(value).trim() !== "")
+          ),
+        ].sort((a, b) =>
+          String(a).localeCompare(String(b), undefined, { numeric: true })
+        );
+      }
+    );
+    return out;
+  }, [authenticationRows]);
+
+  const authenticationFilteredRows = useMemo(
+    () =>
+      authenticationRows.filter((r) =>
+        ["yearmonth", "issuer_name", "issuer_country", "acquirer_name", "BIN"].every(
+          (key) => {
+            const selected = authFilters[key] || [];
+            return (
+              selected.length === 0 || selected.includes(String(r[key]))
+            );
+          }
+        )
+      ),
+    [authenticationRows, authFilters]
+  );
+
+  const authenticationKpi = useMemo(
+    () => authenticationMetrics(authenticationFilteredRows),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationTrend = useMemo(
+    () => authenticationMonthly(authenticationFilteredRows),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationModeMix = useMemo(
+    () => authenticationMix(authenticationFilteredRows),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationFailures = useMemo(
+    () => topAuthenticationFailures(authenticationFilteredRows, 5),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationMandates = useMemo(
+    () => topAuthenticationMandates(authenticationFilteredRows, 5),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationMerchants = useMemo(
+    () => topAuthenticationDimension(authenticationFilteredRows, "merchant_name", 10),
+    [authenticationFilteredRows]
+  );
+
+  const authenticationMCCs = useMemo(
+    () => topAuthenticationDimension(authenticationFilteredRows, "MCC", 10),
+    [authenticationFilteredRows]
   );
 
   const kpi = useMemo(() => aggregate(filteredRows), [filteredRows]);
@@ -1058,14 +1428,14 @@ const chargebackLifecycleData = useMemo(
     setFilters(EMPTY_FILTERS);
   }
 
-  if (loading) {
+  if (loading || authenticationLoading) {
     return (
       <div className="app loading-screen">
         <div className="loader-orb" />
         <div>
           <div className="eyebrow">PAYMENTS INTELLIGENCE</div>
-          <h1>Loading authorization data</h1>
-          <p>Connecting to the live Google Sheets data source…</p>
+          <h1>Loading dashboard data</h1>
+          <p>Connecting to the authorization and authentication data sources…</p>
         </div>
       </div>
     );
@@ -1078,7 +1448,20 @@ const chargebackLifecycleData = useMemo(
           <div className="eyebrow">DATA CONNECTION ERROR</div>
           <h1>Unable to load the dashboard data</h1>
           <p>{loadError}</p>
-          <p className="muted">Check that the Google Sheet is shared for viewing and try refreshing.</p>
+          <p className="muted">Check that the authorization data source is available and try refreshing.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authenticationLoadError) {
+    return (
+      <div className="app loading-screen">
+        <div>
+          <div className="eyebrow">AUTHENTICATION DATA ERROR</div>
+          <h1>Unable to load authentication data</h1>
+          <p>{authenticationLoadError}</p>
+          <p className="muted">Check that the authentication CSV is available and try refreshing.</p>
         </div>
       </div>
     );
@@ -1123,7 +1506,7 @@ const chargebackLifecycleData = useMemo(
           </div>
           <div className="top-actions">
             <div className="scope-pill">
-              <span>{number(filteredRows.length)}</span> rows in scope
+              <span>{number(section === "authentication" ? authenticationFilteredRows.length : filteredRows.length)}</span> rows in scope
             </div>
             <button className="ai-button" onClick={() => setAiOpen(true)}>
               <span className="spark">✦</span> AI Insights
@@ -1146,10 +1529,10 @@ const chargebackLifecycleData = useMemo(
         <section className="content">
           <div className="context-line">
             <span>Current view: <strong>{SECTIONS.find(([id]) => id === section)?.[1]}</strong></span>
-            <span>Filtered authorization activity</span>
+            <span>{section === "authentication" ? "Filtered authentication activity" : "Filtered authorization activity"}</span>
           </div>
 
-          {section === "overview" ? (
+          {section === "authentication" ? null : section === "overview" ? (
             <div className="kpi-grid">
               <Kpi label="Total Amount" value={money(overviewMetrics.totalAmount)} sub="approved + declined amount" />
               <Kpi label="Total Count" value={number(kpi.total)} sub="approved + declined transactions" />
@@ -2642,6 +3025,345 @@ const chargebackLifecycleData = useMemo(
                       </ComposedChart>
                     </ResponsiveContainer>
                   </ChartCard>
+                </div>
+              </motion.div>
+            )}
+
+            {section === "authentication" && (
+              <motion.div
+                key="authentication"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                <div
+                  style={{
+                    padding: "14px",
+                    background: "#ffffff",
+                    border: "1px solid #e3eaf2",
+                    borderRadius: "12px",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <div className="side-label" style={{ marginBottom: "10px" }}>
+                    AUTHENTICATION FILTERS
+                  </div>
+                  <AuthFilterBar
+                    filters={authFilters}
+                    options={authenticationOptions}
+                    setFilters={setAuthFilters}
+                  />
+                </div>
+
+                <div className="kpi-grid compact">
+                  <Kpi
+                    label="Total Authentication Txn Cnt"
+                    value={number(authenticationKpi.total)}
+                    sub="authentication transactions"
+                  />
+                  <Kpi
+                    label="Success Cnt"
+                    value={number(authenticationKpi.success)}
+                    sub="authenticated transactions"
+                  />
+                  <Kpi
+                    label="Success Rate"
+                    value={rate(authenticationKpi.successRate)}
+                    sub="authenticated / total"
+                  />
+                  <Kpi
+                    label="Challenge Success Rate"
+                    value={rate(authenticationKpi.challengeSuccessRate)}
+                    sub="authenticated / challenge"
+                  />
+                  <Kpi
+                    label="Frictionless Success Rate"
+                    value={rate(authenticationKpi.frictionlessSuccessRate)}
+                    sub="authenticated / frictionless"
+                  />
+                </div>
+
+                {/* ROW 1 — MONTHLY AUTHENTICATION + CHALLENGE / FRICTIONLESS MIX */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="MoM Authenticated Volumes"
+                    subtitle="Authentication volume with total success rate"
+                  >
+                    <ResponsiveContainer width="100%" height={320}>
+                      <ComposedChart
+                        data={authenticationTrend}
+                        margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                        <YAxis
+                          yAxisId="volume"
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => number(value)}
+                        />
+                        <YAxis
+                          yAxisId="rate"
+                          orientation="right"
+                          domain={[0, 100]}
+                          tick={{ fontSize: 11 }}
+                          tickFormatter={(value) => `${value}%`}
+                        />
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (name === "Success Rate") {
+                              return [`${Number(value).toFixed(1)}%`, name];
+                            }
+                            return [number(value), "Authentication Volume"];
+                          }}
+                        />
+                        <Legend />
+                        <Bar
+                          yAxisId="volume"
+                          dataKey="volume"
+                          name="Authentication Volume"
+                          fill="#46b5ff"
+                          radius={[6, 6, 0, 0]}
+                        />
+                        <Line
+                          yAxisId="rate"
+                          type="monotone"
+                          dataKey="successRate"
+                          name="Success Rate"
+                          stroke="#66d4a6"
+                          strokeWidth={3}
+                          dot={{ r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+
+                  <ChartCard
+                    title="Challenge vs Frictionless"
+                    subtitle="% share of authentication transactions"
+                  >
+                    <ResponsiveContainer width="100%" height={320}>
+                      <PieChart>
+                        <Pie
+                          data={authenticationModeMix}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="48%"
+                          outerRadius={100}
+                          innerRadius={55}
+                          paddingAngle={2}
+                          label={({ name, percent }) =>
+                            `${name} ${(percent * 100).toFixed(1)}%`
+                          }
+                        >
+                          {authenticationModeMix.map((entry, index) => (
+                            <Cell
+                              key={`auth-mode-${index}`}
+                              fill={
+                                ["#46b5ff", "#66d4a6", "#ffb86b", "#ff6b87"][
+                                  index % 4
+                                ]
+                              }
+                            />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name, props) => [
+                            `${Number(props?.payload?.share || 0).toFixed(1)}%`,
+                            name,
+                          ]}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </div>
+
+                {/* ROW 2 — FAILURE REASONS + MANDATES */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  <ChartCard
+                    title="Top 5 Authentication Failure Reasons"
+                    subtitle="Failure count and % share of authentication failures"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {authenticationFailures.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={x.name}
+                          >
+                            {x.name}
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong style={{ fontSize: "12px", color: "#182638" }}>
+                              {number(x.value)}
+                            </strong>
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {x.share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartCard>
+
+                  <ChartCard
+                    title="Top 5 Challenge Mandates"
+                    subtitle="Authentication count and % share"
+                  >
+                    <div style={{ padding: "8px 4px" }}>
+                      {authenticationMandates.map((x) => (
+                        <div
+                          key={x.name}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "16px",
+                            padding: "10px 0",
+                            borderBottom: "1px solid #e3eaf2",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "12px",
+                              color: "#182638",
+                              fontWeight: 600,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={x.name}
+                          >
+                            {x.name}
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "14px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <strong style={{ fontSize: "12px", color: "#182638" }}>
+                              {number(x.value)}
+                            </strong>
+                            <span
+                              style={{
+                                minWidth: "52px",
+                                textAlign: "right",
+                                fontSize: "11px",
+                                color: "#1677d2",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {x.share.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ChartCard>
+                </div>
+
+                {/* ROW 3 — TOP MERCHANTS + MCCs */}
+                <div className="chart-grid two" style={{ marginTop: "16px" }}>
+                  {[
+                    ["Top 10 Merchants", authenticationMerchants],
+                    ["Top 10 MCCs", authenticationMCCs],
+                  ].map(([title, data]) => (
+                    <ChartCard
+                      key={title}
+                      title={title}
+                      subtitle="Authentication count with success rate"
+                    >
+                      <div style={{ padding: "8px 4px" }}>
+                        {data.map((x) => (
+                          <div
+                            key={x.name}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "16px",
+                              padding: "10px 0",
+                              borderBottom: "1px solid #e3eaf2",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "12px",
+                                color: "#182638",
+                                fontWeight: 600,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={x.name}
+                            >
+                              {x.name}
+                            </span>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "14px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <strong style={{ fontSize: "12px", color: "#182638" }}>
+                                {number(x.count)}
+                              </strong>
+                              <span
+                                style={{
+                                  minWidth: "52px",
+                                  textAlign: "right",
+                                  fontSize: "11px",
+                                  color: "#1677d2",
+                                  fontWeight: 700,
+                                }}
+                              >
+                                {x.successRate.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ChartCard>
+                  ))}
                 </div>
               </motion.div>
             )}

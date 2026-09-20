@@ -1489,7 +1489,7 @@ const declineMCCMixData = useMemo(
                 <div className="chart-grid two">
                   <ChartCard
                     title="Decline Reason Distribution"
-                    subtitle="Top response descriptions"
+                    subtitle="Top response descriptions by count and % share"
                   >
                     <div style={{ padding: "8px 4px" }}>
                       {declineReasons.map((x) => (

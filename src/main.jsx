@@ -322,6 +322,19 @@ function categoryMetrics(rows, key) {
   }));
 }
 
+function primaryCategoryApprovalRate(data, preferredPattern) {
+  const negativePattern = /non|not|no|false|^0$/i;
+  const preferred = data.find(
+    (x) => preferredPattern.test(String(x.name)) && !negativePattern.test(String(x.name))
+  );
+  if (preferred) return preferred.approvalRateByCount;
+
+  const positive = data.find(
+    (x) => !negativePattern.test(String(x.name))
+  );
+  return positive ? positive.approvalRateByCount : 0;
+}
+
 function ticketDeclineMix(rows) {
   const byTicket = new Map();
 
@@ -1196,7 +1209,6 @@ function App() {
   );
 
   const kpi = useMemo(() => aggregate(filteredRows), [filteredRows]);
-  const overallKpi = useMemo(() => aggregate(rows), [rows]);
   const trend = useMemo(() => monthly(filteredRows), [filteredRows]);
 
   const overviewMetrics = useMemo(() => {
@@ -1207,9 +1219,8 @@ function App() {
       approvalRateByCount: kpi.approvalRate,
       fraudRateBps: kpi.fraudRate * 100,
       chargebackRateBps: kpi.cbRate * 100,
-      overallApprovalRateByCount: overallKpi.approvalRate,
     };
-  }, [kpi, overallKpi]);
+  }, [kpi]);
 
   const channelMix = useMemo(
     () =>
@@ -1266,6 +1277,16 @@ const performanceEntryMode = useMemo(
 const performanceWallet = useMemo(
   () => categoryMetrics(filteredRows, "wallet"),
   [filteredRows]
+);
+
+const threeDSApprovalRateByCount = useMemo(
+  () => primaryCategoryApprovalRate(performance3DS, /3ds/i),
+  [performance3DS]
+);
+
+const tokenizedApprovalRateByCount = useMemo(
+  () => primaryCategoryApprovalRate(performanceTokenization, /token/i),
+  [performanceTokenization]
 );
 
 const topMerchants = useMemo(
@@ -1560,7 +1581,22 @@ const chargebackLifecycleData = useMemo(
               <Kpi label="Approval Rate by Count" value={rate(overviewMetrics.approvalRateByCount)} sub="approved count / total count" />
               <Kpi label="Fraud Rate (BPS)" value={bps(overviewMetrics.fraudRateBps)} sub={`${number(kpi.fraud)} fraud transactions`} />
               <Kpi label="Chargeback Rate (BPS)" value={bps(overviewMetrics.chargebackRateBps)} sub={`${number(kpi.cb)} chargebacks`} />
-              <Kpi label="Overall Approval Rate by Count (Static)" value={rate(overviewMetrics.overallApprovalRateByCount)} sub="overall dataset · unaffected by filters" />
+            </div>
+          ) : section === "performance" ? (
+            <div className="kpi-grid">
+              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+              <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
+              <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
+              <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
+              <Kpi label="3DS Approval Rate by Count" value={rate(threeDSApprovalRateByCount)} sub="3DS transactions" />
+              <Kpi label="Tokenized Approval Rate by Count" value={rate(tokenizedApprovalRateByCount)} sub="tokenized transactions" />
+            </div>
+          ) : section === "decline" ? (
+            <div className="kpi-grid">
+              <Kpi label="Authorization Volume" value={number(kpi.total)} sub="approved + declined" />
+              <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
+              <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
+              <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
             </div>
           ) : (
             <div className="kpi-grid">
@@ -1568,8 +1604,8 @@ const chargebackLifecycleData = useMemo(
               <Kpi label="Approval Rate" value={rate(kpi.approvalRate)} sub={`${number(kpi.approved)} approved`} />
               <Kpi label="Approved Value" value={money(kpi.approvedAmt)} sub="approved transaction value" />
               <Kpi label="Decline Rate" value={rate(kpi.declineRate)} sub={`${number(kpi.declined)} declined`} />
-              <Kpi label="Fraud Rate" value={rate(kpi.fraudRate)} sub={`${number(kpi.fraud)} fraud transactions`} />
-              <Kpi label="Chargeback Rate" value={rate(kpi.cbRate)} sub={`${number(kpi.cb)} chargebacks`} />
+              <Kpi label="Fraud Rate" value={bps(kpi.fraudRate * 100)} sub={`${number(kpi.fraud)} fraud transactions`} />
+              <Kpi label="Chargeback Rate" value={bps(kpi.cbRate * 100)} sub={`${number(kpi.cb)} chargebacks`} />
             </div>
           )}
 
@@ -2643,7 +2679,7 @@ const chargebackLifecycleData = useMemo(
                   <Kpi
                     label="Fraud Transactions"
                     value={number(kpi.fraud)}
-                    sub={`${rate(kpi.fraudRate)} of approved`}
+                    sub={`${bps(kpi.fraudRate * 100)} of approved`}
                   />
                   <Kpi
                     label="Fraud Exposure"
@@ -2653,7 +2689,7 @@ const chargebackLifecycleData = useMemo(
                   <Kpi
                     label="Chargebacks"
                     value={number(kpi.cb)}
-                    sub={`${rate(kpi.cbRate)} of approved`}
+                    sub={`${bps(kpi.cbRate * 100)} of approved`}
                   />
                   <Kpi
                     label="Chargeback Exposure"

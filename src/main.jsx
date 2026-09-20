@@ -191,13 +191,33 @@ function topAmountApproval(rows, key) {
     map.set(name, current);
   });
 
-  return [...map.values()]
+  const data = [...map.values()]
     .map((x) => ({
       ...x,
       approvalRate: pct(x.approved, x.approved + x.declined),
     }))
     .sort((a, b) => b.totalAmount - a.totalAmount)
     .slice(0, 10);
+
+  if (!data.length) return data;
+
+  const minAmount = Math.min(...data.map((x) => x.totalAmount));
+  const maxAmount = Math.max(...data.map((x) => x.totalAmount));
+  const minRate = Math.min(...data.map((x) => x.approvalRate));
+  const maxRate = Math.max(...data.map((x) => x.approvalRate));
+
+  const amountRange = Math.max(maxAmount - minAmount, 1);
+  const rateRange = Math.max(maxRate - minRate, 0.01);
+
+  return data.map((x) => ({
+    ...x,
+    // Visual position only: keeps the approval-rate line dynamically
+    // between the bars while preserving the actual rate for the tooltip.
+    approvalRateVisual:
+      minAmount +
+      amountRange *
+        (0.25 + 0.5 * ((x.approvalRate - minRate) / rateRange)),
+  }));
 }
 
 function monthly(rows) {
@@ -1967,24 +1987,15 @@ const chargebackLifecycleData = useMemo(
                         />
                 
                         <YAxis
-                          yAxisId="amount"
                           tick={{ fontSize: 11 }}
                           tickFormatter={money}
                         />
                 
-                        <YAxis
-                          yAxisId="approval"
-                          orientation="right"
-                          domain={[0, 100]}
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(value) => `${value}%`}
-                        />
-                
                         <Tooltip
-                          formatter={(value, name) => {
+                          formatter={(value, name, props) => {
                             if (name === "Approval Rate") {
                               return [
-                                `${Number(value).toFixed(2)}%`,
+                                `${Number(props?.payload?.approvalRate ?? 0).toFixed(2)}%`,
                                 name,
                               ];
                             }
@@ -1996,10 +2007,8 @@ const chargebackLifecycleData = useMemo(
                           }}
                         />
                 
-                        <Legend />
                 
                         <Bar
-                          yAxisId="amount"
                           dataKey="totalAmount"
                           name="Total Amount"
                           fill="#46b5ff"
@@ -2007,9 +2016,8 @@ const chargebackLifecycleData = useMemo(
                         />
                 
                         <Line
-                          yAxisId="approval"
                           type="monotone"
-                          dataKey="approvalRate"
+                          dataKey="approvalRateVisual"
                           name="Approval Rate"
                           stroke="#ff6b87"
                           strokeWidth={3}
@@ -2047,24 +2055,15 @@ const chargebackLifecycleData = useMemo(
                         />
                 
                         <YAxis
-                          yAxisId="amount"
                           tick={{ fontSize: 11 }}
                           tickFormatter={money}
                         />
                 
-                        <YAxis
-                          yAxisId="approval"
-                          orientation="right"
-                          domain={[0, 100]}
-                          tick={{ fontSize: 11 }}
-                          tickFormatter={(value) => `${value}%`}
-                        />
-                
                         <Tooltip
-                          formatter={(value, name) => {
+                          formatter={(value, name, props) => {
                             if (name === "Approval Rate") {
                               return [
-                                `${Number(value).toFixed(2)}%`,
+                                `${Number(props?.payload?.approvalRate ?? 0).toFixed(2)}%`,
                                 name,
                               ];
                             }
@@ -2076,10 +2075,8 @@ const chargebackLifecycleData = useMemo(
                           }}
                         />
                 
-                        <Legend />
                 
                         <Bar
-                          yAxisId="amount"
                           dataKey="totalAmount"
                           name="Total Amount"
                           fill="#46b5ff"
@@ -2087,9 +2084,8 @@ const chargebackLifecycleData = useMemo(
                         />
                 
                         <Line
-                          yAxisId="approval"
                           type="monotone"
-                          dataKey="approvalRate"
+                          dataKey="approvalRateVisual"
                           name="Approval Rate"
                           stroke="#ff6b87"
                           strokeWidth={3}

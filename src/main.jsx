@@ -1659,12 +1659,39 @@ const chargebackLifecycleData = useMemo(
         topMCCs: authenticationMCCs,
       },
     };
+    const dashboardKpis = {
+      authorizationVolume: kpi.total,
+      approvedTransactions: kpi.approved,
+      declinedTransactions: kpi.declined,
+      approvedValue: kpi.approvedAmt,
+      declinedValue: kpi.declinedAmt,
+      approvalRateByCount: kpi.approvalRate,
+      approvalRateByAmount: overviewMetrics.approvalRateByAmount,
+      declineRate: kpi.declineRate,
+      fraudTransactions: kpi.fraud,
+      fraudAmount: kpi.fraudAmt,
+      fraudRateBps: Number((kpi.fraudRate * 100).toFixed(2)),
+      chargebackTransactions: kpi.cb,
+      chargebackAmount: kpi.cbAmt,
+      chargebackRateBps: Number((kpi.cbRate * 100).toFixed(2)),
+      authenticationTransactions: authenticationKpi.total,
+      authenticationSuccessCount: authenticationKpi.success,
+      authenticationSuccessRate: authenticationKpi.successRate,
+      challengeSuccessRate: authenticationKpi.challengeSuccessRate,
+      frictionlessSuccessRate: authenticationKpi.frictionlessSuccessRate,
+    };
+
     const currentSectionContext = sectionContexts[section] || sectionContexts.overview;
     return {
       analysisMode: aiMode,
       view: SECTIONS.find(([id]) => id === section)?.[1] || section,
       currentSection: section,
       currentSectionContext,
+      dashboardKpis,
+      rowsInScope:
+        section === "authentication"
+          ? authenticationFilteredRows.length
+          : filteredRows.length,
       dashboardSummary: {
         overview: sectionContexts.overview,
         authorizationPerformance: sectionContexts.performance,
@@ -1675,11 +1702,26 @@ const chargebackLifecycleData = useMemo(
       filters: { authorization: authorizationFilters, authentication: authenticationFilters },
       scope: { authorizationRows: filteredRows.length, authenticationRows: authenticationFilteredRows.length },
       metricDefinitions: {
-        approvalRateByCount: "Approved authorization transactions / total authorization transactions",
-        approvalRateByAmount: "Approved authorization amount / total authorization amount",
-        fraudRate: "Fraud transactions / approved authorization transactions",
-        chargebackRate: "Chargeback transactions / approved authorization transactions",
-        authenticationSuccessRate: "Authenticated authentication transactions / total authentication transactions",
+        approvalRateByCount:
+          "Approved authorization transactions / total authorization transactions",
+        approvalRateByAmount:
+          "Approved authorization amount / total authorization amount",
+        declineRate:
+          "Declined authorization transactions / total authorization transactions",
+        fraudRate:
+          "Fraud transactions / approved authorization transactions",
+        fraudRateBps:
+          "Fraud transactions / approved authorization transactions × 10,000",
+        chargebackRate:
+          "Chargeback transactions / approved authorization transactions",
+        chargebackRateBps:
+          "Chargeback transactions / approved authorization transactions × 10,000",
+        authenticationSuccessRate:
+          "Authenticated authentication transactions / total authentication transactions",
+        challengeSuccessRate:
+          "Authenticated challenge transactions / total challenge transactions",
+        frictionlessSuccessRate:
+          "Authenticated frictionless transactions / total frictionless transactions",
       },
       analysisGuidance: {
         useOnlyProvidedMetrics: true,
@@ -1690,6 +1732,8 @@ const chargebackLifecycleData = useMemo(
         identifyMixShifts: true,
         distinguishVolumeFromRate: true,
         avoidUnsupportedCausality: true,
+        formatRiskRatesAsBps: true,
+        riskRateDecimalPlaces: 2,
       },
     };
   }, [
@@ -3984,9 +4028,9 @@ const chargebackLifecycleData = useMemo(
                       <span>Decline</span>
                       <strong>{rate(kpi.declineRate)}</strong>
                       <span>Fraud</span>
-                      <strong>{rate(kpi.fraudRate)}</strong>
+                      <strong>{bps(kpi.fraudRate * 100)}</strong>
                       <span>Chargeback</span>
-                      <strong>{rate(kpi.cbRate)}</strong>
+                      <strong>{bps(kpi.cbRate * 100)}</strong>
                     </>
                   )}
                 </div>

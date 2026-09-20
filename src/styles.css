@@ -389,3 +389,44 @@ button { cursor: pointer; }
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+
+.context-filters {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e3eaf2;
+}
+
+.context-filter-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: #718096;
+  margin-bottom: 8px;
+}
+
+.context-filter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-filter-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+
+.context-filter-item span {
+  color: #718096;
+  flex-shrink: 0;
+}
+
+.context-filter-item strong {
+  color: #182638;
+  font-weight: 700;
+  text-align: right;
+  word-break: break-word;
+}

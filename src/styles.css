@@ -498,13 +498,11 @@ button { cursor: pointer; }
 }
 
 
-/* Targeted responsive fixes for chart sizing and the Fraud & Chargebacks first row */
+/* Targeted responsive fixes for the Fraud & Chargebacks first row.
+   Pie sizes are controlled by Recharts percentage radii so they scale
+   naturally with the available chart container. */
 .risk-reasons-row {
   min-width: 0;
-}
-
-.responsive-pie-chart {
-  transform-origin: center center;
 }
 
 @media (max-width: 1100px) {
@@ -516,22 +514,6 @@ button { cursor: pointer; }
 @media (max-width: 820px) {
   .risk-reasons-row {
     grid-template-columns: 1fr !important;
-  }
-
-  .responsive-pie-chart {
-    transform: scale(0.82);
-  }
-}
-
-@media (max-width: 600px) {
-  .responsive-pie-chart {
-    transform: scale(0.72);
-  }
-}
-
-@media (max-width: 380px) {
-  .responsive-pie-chart {
-    transform: scale(0.64);
   }
 }
 

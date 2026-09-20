@@ -548,7 +548,8 @@ button { cursor: pointer; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-grid.two {
+  .chart-grid.two,
+  .chart-grid.three {
     grid-template-columns: 1fr;
   }
 
@@ -639,7 +640,8 @@ button { cursor: pointer; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .chart-grid.two {
+  .chart-grid.two,
+  .chart-grid.three {
     grid-template-columns: 1fr;
   }
 
@@ -774,7 +776,8 @@ button { cursor: pointer; }
     margin-bottom: 10px;
   }
 
-  .chart-grid.two {
+  .chart-grid.two,
+  .chart-grid.three {
     grid-template-columns: 1fr;
   }
 

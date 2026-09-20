@@ -674,7 +674,7 @@ const ticketDeclineData = useMemo(
   ticketDeclineData,
 ]);
 
-  async function generateInsights(mode = aiMode) {
+  async function generateInsights(mode = aiMode, promptOverride = null) {
     setAiLoading(true);
     setAiStatus("Generating insights…");
     setAiResult("");
@@ -692,7 +692,10 @@ const ticketDeclineData = useMemo(
             analysisMode: mode,
           },
           analysisMode: mode,
-          userPrompt: userPrompt.trim(),
+          userPrompt:
+            promptOverride !== null
+              ? promptOverride
+              : userPrompt.trim(),
         }),
         signal: controller.signal,
       });
@@ -1467,6 +1470,7 @@ const ticketDeclineData = useMemo(
                       return;
                     }
                   
+                    setUserPrompt("");
                     setAiMode("current_section");
                     generateInsights("current_section");
                   }}
@@ -1485,6 +1489,7 @@ const ticketDeclineData = useMemo(
                       return;
                     }
                   
+                    setUserPrompt("");
                     setAiMode("whole_dashboard");
                     generateInsights("whole_dashboard");
                   }}

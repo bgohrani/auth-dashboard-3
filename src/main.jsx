@@ -1888,6 +1888,17 @@ const chargebackLifecycleData = useMemo(
             <span>Current view: <strong>{SECTIONS.find(([id]) => id === section)?.[1]}</strong></span>
             <span>{section === "authentication" ? "Filtered authentication activity" : "Filtered authorization activity"}</span>
           </div>
+          {section === "authentication" && (
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#718096",
+                marginBottom: "16px",
+              }}
+            >
+              <strong>Important:</strong> Authentication data has been loaded as a separate source. Please use the filters in this tab to change the visualizations of the data. Filters on the left pane pertain only to Authorization tabs and will not apply here.
+            </div>
+          )}
 
           {section === "authentication" ? null : section === "overview" ? (
             <div className="kpi-grid">

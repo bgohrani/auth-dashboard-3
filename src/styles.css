@@ -558,8 +558,8 @@ button { cursor: pointer; }
   }
 
   .sidebar {
-    width: 230px;
-    flex-basis: 230px;
+    width: 270px;
+    flex-basis: 270px;
   }
 }
 

@@ -1839,7 +1839,7 @@ const chargebackLifecycleData = useMemo(
 
         <div className="sidebar-foot">
           <span className="live-dot" />
-          <span>Live Google Sheets source</span>
+          <span>Live Data from Vercel Blob</span>
         </div>
       </aside>
 
